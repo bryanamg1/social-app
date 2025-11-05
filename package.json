@@ -2,9 +2,11 @@
   "name": "social-app",
   "version": "1.0.0",
   "description": "social app",
-  "main": "index.js",
+  "main": "src/app.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon src/app.js"
   },
   "author": "denigvm10",
   "license": "ISC",
@@ -17,6 +19,8 @@
     "express-validator": "^7.3.0",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.15.3",
+    "path": "^0.12.7",
+    "promise": "^8.3.0",
     "sequelize": "^6.37.7"
   },
   "devDependencies": {

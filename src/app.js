@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path"
 import { fileURLToPath } from 'url';
+import routerUser from "./router/user.js"
 import postsRouter from "./router/postsRouter.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -21,6 +22,7 @@ app.use(cors())
 app.get("/", (req,res)=>{
     res.send("servidor funcionando")
 });
+app.use("/api",routerUser)
 
 app.use("/api/posts", postsRouter);
 

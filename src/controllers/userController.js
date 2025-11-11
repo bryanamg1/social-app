@@ -20,7 +20,12 @@ export const profile = async (req,res)=>{
 
 export const register = async (req,res)=>{
     try {
-        
+        const {name,email,password}= req.body;
+        const [existinguser]= await db.query("SELECT * FROM user WHERE email = ?",[email]);
+        if(existinguser.length > 0){
+            return res.status(400).json({msg: "este usario ya existe"})
+        }
+        const hashedpassword= await bcrypt.hash(password,10);
     } catch (error) {
         
     }

@@ -1,6 +1,6 @@
 import { json } from "express";
 import db from "../config/db.js";
-import { insertPost, getPosts } from "../service/postsService.js";
+import { insertPost, getPosts,deletePost } from "../service/postsService.js";
 
 export const addpost = async (req, res) => {
     try {
@@ -45,6 +45,12 @@ try {
 
   const result = await getPosts(db, limit, offset)
 
+  if (!result || result.length === 0) {
+  return res.status(404).json({
+    message: "⚠️ No se encontraron posts."
+  });
+}
+
   res.status(200).json({
     message: "✅ Posts retrieved successfully",
     posts: result
@@ -88,3 +94,30 @@ export const postById = async (req, res) => {
     res.status(500).json({ error: "Error retrieving posts" });
   }
 };
+
+
+export const deletePostById = async (req, res) =>{
+  try {
+    const postId = parseInt(req.params.id, 10)
+
+    if (isNaN(postId)){
+      return res.status(400).json({ error: "Invalid or missing comment ID" });
+    }
+
+    const result = await deletePost(db, postId)
+
+    if (result.affectedRows === 0){
+      return res.status(400).json({error: "❌ Post not found"})
+    }
+
+    res.status(200).json({
+      message: "✅ Post deleted successfully",
+      affectedRows: result.affectedRows,
+    });
+
+  } catch (error) {
+    console.error("❌ Error deleting post:", error)
+    res.status(500).json({error: "error deletoing post"})
+  }
+}
+

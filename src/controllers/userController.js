@@ -29,9 +29,11 @@ export const register = async (req,res)=>{
             return res.status(400).json({msg: "este usario ya existe"});
         }else{
         const hashedpassword= await bcrypt.hash(password,10);
-        await db.query("INSERT INTO users (user_name,email,password) VALUES (?,?,?)",[user_name,email,hashedpassword]);
-        res.status(201).json({msg:"usuario registrado"})
-        }
+        const [result] = await db.query("INSERT INTO users (user_name, email, password) VALUES (?, ?, ?)",[user_name, email, hashedpassword]);
+        
+        const token = jwt.sign({ user: { user_id: result.insertId, name: user_name, email } },SECRET_KEY,{ expiresIn: "1h" });
+            res.status(201).json({msg: "Usuario registrado exitosamente",token,});
+}
     } catch (error) {
         res.status(500).json({msg:"server error"});
         console.error(error);

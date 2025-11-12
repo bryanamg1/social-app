@@ -42,3 +42,21 @@ export const getPosts = async (db, limit, offset, userId = null)=>{
         throw error;
     }
 };
+
+export const deletePost = async (db, postId)=>{
+    try {
+        const deletePostQuery = `
+        delete from posts
+        where post_id = ?`;
+
+        const [result] = await db.query(deletePostQuery,[postId])
+        
+        console.log("✅ Comment deleted successfully:", result);
+    return result;
+
+
+    } catch (error) {
+        console.error("❌ Error deleting post:", error)
+    throw error;
+    }
+}

@@ -7,7 +7,7 @@ const db = mysql.createPool({
     user: process.env.DB_USER || "root",
     port: process.env.DB_PORT || "",
     password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME || "social-app"
+    database: process.env.DB_NAME || "social_app"
 });
 
 console.log('Conectado a la base de datos✔️​​');

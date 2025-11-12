@@ -1,0 +1,30 @@
+name: 🚀 Deploy to Railway
+
+on:
+  push:
+    branches:
+      - main  # o la rama que uses para producción
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧭 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🧱 Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🧪 Run build (si tu proyecto tiene script de build)
+        run: npm run build --if-present
+
+      - name: 🚀 Deploy to Railway
+        uses: railwayapp/railway-action@v1
+        with:
+          railwayToken: ${{ secrets.RAILWAY_TOKEN }}

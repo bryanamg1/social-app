@@ -26,6 +26,8 @@ app.use("/api",routerUser)
 
 app.use("/api/posts", postsRouter);
 
+app.use("/api/comments", )
+
 app.listen(PORT,()=>{
     console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);
     

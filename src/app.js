@@ -5,6 +5,7 @@ import path from "path"
 import { fileURLToPath } from 'url';
 import routerUser from "./router/user.js"
 import postsRouter from "./router/postsRouter.js";
+import commentsRouter from "./router/commentsRouter.js"
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,7 +27,7 @@ app.use("/api",routerUser)
 
 app.use("/api/posts", postsRouter);
 
-app.use("/api/comments", )
+app.use("/api/comments", commentsRouter )
 
 app.listen(PORT,()=>{
     console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);

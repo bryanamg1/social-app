@@ -32,7 +32,20 @@ export const followUser = async (req, res) =>{
 
 export const unfollowUser = async (req, res)=>{
     try{
+        const unfollowerid = req.params.id;
+        const unfollowidUser = req.user.user_id;
 
+        const [userExists] = await db.query("SELECT * FROM users WHERE user_id = ?",
+            [unfollowerid]);
+
+        if (userExists.length === 0) {
+            return res.status(404).json({msg:"Este usuario no existe"});
+        }
+
+        await db.query ("DELETE FROM follows WHERE follower_id = ? AND followed_id = ?",
+            [unfollowidUser, unfollowerid]
+        );
+        res.status(200).json({msg:"Has dejado de seguir al usuario"});
     }catch(error){
         res.status(500).json({msg:"Error al dejar de seguir"});
         console.error(error);
@@ -40,3 +53,5 @@ export const unfollowUser = async (req, res)=>{
     }
 
 };
+
+

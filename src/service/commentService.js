@@ -14,3 +14,21 @@ export const insertComment = async (db,comment_text, parent_comment_id, postId, 
     throw error;
     }
 }
+
+export const readComments = async (db, post_id) =>{
+    try {
+        const readCommentsQuery = `
+        SELECT * FROM  comments
+        WHERE post_id = ?
+        `;
+
+        const [result] = await db.query(readCommentsQuery, [post_id]);
+
+        console.log("✅ Comments retrieved successfully:", result);
+        return result;
+
+    } catch (error) {
+    console.error("❌ Error reading comments:", error);
+    throw error;
+  }
+}

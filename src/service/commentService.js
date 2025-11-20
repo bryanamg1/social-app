@@ -15,14 +15,14 @@ export const insertComment = async (db,comment_text, parent_comment_id, postId, 
     }
 }
 
-export const readComments = async (db, post_id) =>{
+export const readComments = async (db, postId) =>{
     try {
         const readCommentsQuery = `
         SELECT * FROM  comments
         WHERE post_id = ?
         `;
 
-        const [result] = await db.query(readCommentsQuery, [post_id]);
+        const [result] = await db.query(readCommentsQuery, [postId]);
 
         console.log("✅ Comments retrieved successfully:", result);
         return result;

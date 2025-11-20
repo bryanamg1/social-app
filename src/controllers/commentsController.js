@@ -1,5 +1,5 @@
 import db from "../config/db.js";
-import { insertComment } from "../service/commentService.js";
+import { insertComment, readComments } from "../service/commentService.js";
 
 export const addComment = async (req, res) =>{
     try {
@@ -46,5 +46,25 @@ export const addComment = async (req, res) =>{
     }
     catch (error) {
         res.status(500).json({ error: "Error inserting comment" });
+    }
+}
+
+export const commentsByPost = async (req, res) =>{
+    try {
+        const postId = parseInt(req.params.postId, 10)
+
+        if (isNaN(postId)) {
+     return res.status(400).json({ error: "Invalid or missing user ID" });
+    }
+
+    const result = await readComments(db, postId)
+
+    res.status(200).json({
+      message: "✅ Comments retrieved successfully",
+      comments: result,
+    });
+
+    } catch (error) {
+        res.status(500).json({ error: "Error reading comment" });
     }
 }

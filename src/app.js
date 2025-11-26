@@ -26,14 +26,15 @@ app.get("/", (req,res)=>{
     res.send("servidor funcionando")
 });
 app.use("/api",routerUser);
+
 app.use("/api",followsrouter);
+
 app.use("/api/posts", postsRouter);
 
 app.use("/api/comments", commentsRouter )
 
 app.use("/api/reactions", reactionsRouter)
 
-app.use("/api", followsrouter)
 
 app.listen(PORT,()=>{
     console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);

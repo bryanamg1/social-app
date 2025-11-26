@@ -5,6 +5,8 @@ import path from "path"
 import { fileURLToPath } from 'url';
 import routerUser from "./router/user.js"
 import postsRouter from "./router/postsRouter.js";
+import commentsRouter from "./router/commentsRouter.js"
+import reactionsRouter from "./router/reactionsRouter.js"
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,6 +27,10 @@ app.get("/", (req,res)=>{
 app.use("/api",routerUser)
 
 app.use("/api/posts", postsRouter);
+
+app.use("/api/comments", commentsRouter )
+
+app.use("/api/reactions", reactionsRouter)
 
 app.listen(PORT,()=>{
     console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);

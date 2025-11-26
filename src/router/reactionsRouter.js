@@ -1,9 +1,11 @@
 import Router from 'express'
-import { toggleReactionPost, getReactionsByPost } from '../controllers/reactionsController.js';
+import { toggleReactionPost, getReactionsByPost, toggleReactionComment, getReactionsByComment } from '../controllers/reactionsController.js';
 
 const router = Router();
 
-router.post('/toggle-reaction/:userId/:postId', toggleReactionPost);
-router.get('/reactionsPost/:postId', getReactionsByPost)
+router.post('/toggleReaction/:userId/:postId', toggleReactionPost);
+router.get('/reactionsPost/:postId', getReactionsByPost);
+router.post('/toggleReactionComment/:userId/:commentId', toggleReactionComment)
+router.get('/reactionComment/:commentId', getReactionsByComment)
 
 export default router;

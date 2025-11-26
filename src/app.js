@@ -1,12 +1,13 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import path from "path"
+import path from "path";
 import { fileURLToPath } from 'url';
-import routerUser from "./router/user.js"
+import routerUser from "./router/user.js";
 import postsRouter from "./router/postsRouter.js";
-import commentsRouter from "./router/commentsRouter.js"
-import reactionsRouter from "./router/reactionsRouter.js"
+import commentsRouter from "./router/commentsRouter.js";
+import reactionsRouter from "./router/reactionsRouter.js";
+import followsrouter from "./router/followsRouter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +32,8 @@ app.use("/api/posts", postsRouter);
 app.use("/api/comments", commentsRouter )
 
 app.use("/api/reactions", reactionsRouter)
+
+app.use("/api", followsrouter)
 
 app.listen(PORT,()=>{
     console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);

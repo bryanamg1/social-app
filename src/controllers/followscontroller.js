@@ -69,5 +69,6 @@ export const feedfollowers = async (req,res)=>{
         res.status(200).json({msg:"feed de los usuarios que sigues",data:feed});
     } catch (error) {
         res.status(500).json({msg:"error al obtener feed de seguidores"})
+
     }
 }

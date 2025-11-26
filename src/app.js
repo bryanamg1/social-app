@@ -25,8 +25,8 @@ app.use(cors())
 app.get("/", (req,res)=>{
     res.send("servidor funcionando")
 });
-app.use("/api",routerUser)
-
+app.use("/api",routerUser);
+app.use("/api",followsrouter);
 app.use("/api/posts", postsRouter);
 
 app.use("/api/comments", commentsRouter )

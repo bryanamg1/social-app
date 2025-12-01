@@ -8,6 +8,7 @@ import postsRouter from "./router/postsRouter.js";
 import commentsRouter from "./router/commentsRouter.js";
 import reactionsRouter from "./router/reactionsRouter.js";
 import followsrouter from "./router/followsRouter.js";
+import imageRouter from "./router/imageRouter.js"
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,8 @@ app.use("/api/posts", postsRouter);
 app.use("/api/comments", commentsRouter )
 
 app.use("/api/reactions", reactionsRouter)
+
+app.use("/api/image", imageRouter)
 
 
 app.listen(PORT,()=>{

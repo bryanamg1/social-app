@@ -74,6 +74,13 @@ export const updateProfile = async (req,res) =>{
         if(existinguser.length === 0){
             return res.status(404).json({msg:"este usuario no existe"});
         }
+        await db.query("UPDATE users SET user_name = ?, bio = ?, location = ? WHERE user_id = ?",
+        [user_name,bio,location,userId]);
+
+        const token = jwt.sign({ user: { user_id: userId, name: user_name, email: existinguser[0].email } },
+        SECRET_KEY,{ expiresIn: "1h" });
+
+            return res.status(200).json({msg:"perfil actualizado exitosamente",token, data:{user_name,bio,location}});
     }
     catch(error){
         res.status(500).json({msg:"error al actualizar el perfil"});

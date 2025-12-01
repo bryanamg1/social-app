@@ -6,6 +6,7 @@ export const addpost = async (req, res) => {
     try {
      const postData = req.body;
      const userId = parseInt(req.params.id, 10);
+     const image_url = req.file ? req.file.path : null;
  // validations
 
         if (isNaN(userId)) {
@@ -20,15 +21,14 @@ export const addpost = async (req, res) => {
     return res.status(400).json({ error: "Post content is required" });
     }
 
-    if (!postData.image_url || postData.image_url.trim() === "") {
-     postData.image_url = null
-    }
+    
 // insert
-    const result = await insertPost(db, postData, userId);
+    const result = await insertPost(db, postData, userId, image_url);
 
     res.status(201).json({
       message: "✅ Post added successfully",
       postId: result.insertId,
+      image_url
     });
 
 

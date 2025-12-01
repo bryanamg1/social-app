@@ -88,3 +88,34 @@ export const updateProfile = async (req,res) =>{
     }
 };
 
+export const setImage = async (req, res) =>{
+    try {
+        const userId = parseInt(req.params.userId, 10)
+
+        if (isNaN(userId)) {
+      return res.status(400).json({ error: "Invalid or missing user ID" });
+        }
+        
+        if(!req.file){
+            return res.status(400).json({ error: "No se envió ninguna imagen" })
+        }
+        
+        const updateImaeQuery = `
+        UPDATE users SET avatar_url = ? WHERE user_id =?
+        `
+
+        const newImage = req.file ? req.file.path : null;
+        
+
+        const result = await db.query(updateImaeQuery,[newImage, userId])
+
+        return res.status(200).json({
+      message: "Imagen subida correctamente",
+      result,
+    });
+
+    } catch (error) {
+        res.status(500).json({mesage: "error cargando imagen", error})
+        console.log(error)
+    }
+}

@@ -1,6 +1,8 @@
 import db from "../config/db.js"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
+import { searchUser } from "../service/usersService.js";
+
 const SECRET_KEY = process.env.SECRET_KEY || "2025jwtdev";
 
 export const profile = async (req,res)=>{
@@ -119,3 +121,26 @@ export const setImage = async (req, res) =>{
         console.log(error)
     }
 }
+
+export const searchUserController = async (req, res) => {
+    try {
+        const { query } = req.query; // EXTRAES el valor correcto
+
+        if (!query || query.trim() === "") {
+            return res.status(400).json({ error: "query requerida" });
+        }
+
+        const sanitizedQuery = query.trim();
+
+        const result = await searchUser(db, sanitizedQuery);
+
+        return res.status(200).json({
+            count: result.length,
+            users: result,
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "error obteniendo usuario", error });
+    }
+};

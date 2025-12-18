@@ -9,6 +9,7 @@ import commentsRouter from "./router/commentsRouter.js";
 import reactionsRouter from "./router/reactionsRouter.js";
 import followsrouter from "./router/followsRouter.js";
 import imageRouter from "./router/imageRouter.js"
+import http from "http";
 import {Server} from "socket.io";
 import { notificationSocket  } from "./socket/notificationSocket.js";
 
@@ -20,6 +21,8 @@ const app = express()
 
 
 const PORT = process.env.PORT || 8080
+
+const server = http.createServer(app);
 
 export const io = new Server(server,{cors:{origin: "*", methods: ["GET","POST"]}});
 notificationSocket(io);
@@ -44,7 +47,7 @@ app.use("/api/reactions", reactionsRouter)
 app.use("/api/image", imageRouter)
 
 
-app.listen(PORT,()=>{
+server.listen(PORT,()=>{
     console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);
     
 });

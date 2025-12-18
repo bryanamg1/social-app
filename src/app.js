@@ -9,7 +9,7 @@ import commentsRouter from "./router/commentsRouter.js";
 import reactionsRouter from "./router/reactionsRouter.js";
 import followsrouter from "./router/followsRouter.js";
 import imageRouter from "./router/imageRouter.js"
-import {server} from "socket";
+import {Server} from "socket.io";
 import { notificationSocket  } from "./socket/notificationSocket.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -21,7 +21,7 @@ const app = express()
 
 const PORT = process.env.PORT || 8080
 
-export const io = new server(server,{cors:{origin: "*", methods: ["GET","POST"]}});
+export const io = new Server(server,{cors:{origin: "*", methods: ["GET","POST"]}});
 notificationSocket(io);
 
 app.use(express.json())

@@ -6,9 +6,9 @@ import auth from "../middleware/auth.js"
 const router = express.Router()
 
 router.get("/users/:id",auth,profile)
-router.post("/auth/register",register)
-router.post("/auth/login",login)
-router.patch("/auth/update/:id",auth,updateProfile)
+router.post("/register",register)
+router.post("/login",login)
+router.patch("/update/:id",auth,updateProfile)
 router.get("/usersSearch",searchUserController)
 
 export default router;

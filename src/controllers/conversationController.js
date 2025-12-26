@@ -1,5 +1,7 @@
-import { findConversationBetweenTwoUsers, createConversation, addUsersToConversation, userBelongsToConversation, getMessagesByConversation, getUserConversations } from "../service/conversatinsService.js";
+import { findConversationBetweenTwoUsers, createConversation, addUsersToConversation, userBelongsToConversation, getMessagesByConversation, getUserConversations } from "../service/conversationsService.js";
+import { insertMessage } from "../service/messageService.js";
 import db from "../config/db.js";
+import { insertComment } from "../service/commentService.js";
 
 export const createOrGetConversations = async (req, res) => {
     try {
@@ -95,5 +97,42 @@ export const getConversationsMessges =  async (req, res)=>{
     } catch (error) {
         console.error("getConversationMessage error:", error);
         return res.status(500).json({ error: "Error del servidor", detail: error.message });   
+    }
+}
+
+export const sendMessageRest = async (req, res)=>{
+    try {
+        const {senderId, conversationId, content} = req.body;
+
+        const sender_id = parseInt(senderId, 10);
+        const conversation_id = parseInt(conversationId, 10);
+
+        if(isNaN(sender_id)){
+            return res.status(400).json({ error: "Invalid or missing sender ID" })
+        }
+
+        if(isNaN(conversation_id)){
+            return res.status(400).json({error: "invalid or missing coversation ID"})
+        }
+
+        if(!content){
+            return res.status(400).json({error: "content is require"})
+        }
+
+        const allowed = await userBelongsToConversation(db, conversation_id, sender_id)
+
+        if(!allowed){
+            return res.status(400).json({error: "no perteneces a esta conversacion"})
+        }
+
+        const message = await insertComment(db, conversation_id, senderId, content.trim())
+
+        return res.status(201).json({
+            message
+        })
+        
+    } catch (error) {
+        console.error("sendmessageRest error:", error);
+        return res.status(500).json({ error: "Error del servidor", detail: error.message });
     }
 }

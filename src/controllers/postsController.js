@@ -1,4 +1,3 @@
-import { json } from "express";
 import db from "../config/db.js";
 import { insertPost, getPosts,deletePost } from "../service/postsService.js";
 
@@ -6,8 +5,17 @@ export const addpost = async (req, res) => {
     try {
      const postData = req.body;
      const userId = parseInt(req.params.id, 10);
-     const image_url = req.file ? req.file.path : null;
+
+     const {image_url: imageUrlFromBody} = req.body
+
+     let image_url = null;
  // validations
+
+      if (req.file) {
+      image_url = req.file.secure_url || req.file.path;
+    } else if (imageUrlFromBody) {
+      image_url = imageUrlFromBody.trim();
+    }
 
         if (isNaN(userId)) {
      return res.status(400).json({ error: "Invalid or missing user ID" });
@@ -33,7 +41,8 @@ export const addpost = async (req, res) => {
 
 
     } catch (error) {
-        res.status(500).json({ error: "Error adding post" });
+        console.error('Error agregar post:', error);
+      res.status(500).json({ error: 'Error adding post' });
     }
 };
 

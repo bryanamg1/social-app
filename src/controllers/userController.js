@@ -90,37 +90,44 @@ export const updateProfile = async (req,res) =>{
     }
 };
 
-export const setImage = async (req, res) =>{
-    try {
-        const userId = parseInt(req.params.userId, 10)
+export const setImage = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
 
-        if (isNaN(userId)) {
+    if (isNaN(userId)) {
       return res.status(400).json({ error: "Invalid or missing user ID" });
-        }
-        
-        if(!req.file){
-            return res.status(400).json({ error: "No se envió ninguna imagen" })
-        }
-        
-        const updateImaeQuery = `
-        UPDATE users SET avatar_url = ? WHERE user_id =?
-        `
+    }
 
-        const newImage = req.file ? req.file.path : null;
-        
+    let image_url = null;
 
-        const result = await db.query(updateImaeQuery,[newImage, userId])
+    if (req.file) {
+      image_url = req.file.secure_url || req.file.path;
+    } else if (req.body.image_url) {
+      image_url = req.body.image_url.trim();
+    }
 
-        return res.status(200).json({
-      message: "Imagen subida correctamente",
-      result,
+    if (!image_url) {
+      return res.status(400).json({ error: "No image received" });
+    }
+
+    const updateImageQuery = `
+      UPDATE users 
+      SET avatar_url = ? 
+      WHERE user_id = ?
+    `;
+
+    await db.query(updateImageQuery, [image_url, userId]);
+
+    return res.status(200).json({
+      message: "Imagen subida y actualizada correctamente",
+      avatar_url: image_url
     });
 
-    } catch (error) {
-        res.status(500).json({mesage: "error cargando imagen", error})
-        console.log(error)
-    }
-}
+  } catch (error) {
+    console.error("❌ Error cargando imagen:", error);
+    return res.status(500).json({ message: "Error cargando imagen", error });
+  }
+};
 
 export const searchUserController = async (req, res) => {
     try {

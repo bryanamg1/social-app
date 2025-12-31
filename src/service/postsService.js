@@ -47,16 +47,15 @@ export const getPosts = async (db, limit, offset, userId = null)=>{
 export const getPostById = async (db, post_id) => {
   try {
     const query = `
-      SELECT *
-      FROM posts
-      WHERE post_id = ?
+      SELECT p.*, u.user_name 
+      FROM posts p
+      JOIN users u ON p.user_id = u.user_id
+      WHERE p.post_id = ?
     `;
 
     const [rows] = await db.query(query, [post_id]);
-
     
-    return rows[0] || null; 
-
+    return rows[0] || null; // Si no hay resultados, devolvemos null
   } catch (error) {
     console.error("❌ Error reading post", error);
     throw error;

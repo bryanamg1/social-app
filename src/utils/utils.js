@@ -4,7 +4,6 @@ export const optionalUpload = (req, res, next) => {
   const contentType = req.headers["content-type"] || "";
 
   if (contentType.startsWith("multipart/form-data")) {
-    // aquí SÍ procesamos posible archivo "image"
     upload.single("image")(req, res, (err) => {
       if (err) {
         console.error("❌ Error en Multer:", err);
@@ -12,8 +11,8 @@ export const optionalUpload = (req, res, next) => {
       }
       next();
     });
+
   } else {
-    // JSON normal, no tocamos Multer
-    next();
+    next(); // No es form-data, seguimos normal
   }
 };

@@ -32,7 +32,7 @@ export const register = async (req,res)=>{
             return res.status(400).json({msg: "este nombre de usuario ya existe"});
         }
         if(existinguser.length > 0){
-            return res.status(400).json({msg: "este usario ya existe"});
+            return res.status(400).json({msg: "este usario email ya esta registrado"});
         }else{
         const hashedpassword= await bcrypt.hash(password,10);
         const [result] = await db.query("INSERT INTO users (user_name, email, password) VALUES (?, ?, ?)",[user_name, email, hashedpassword]);

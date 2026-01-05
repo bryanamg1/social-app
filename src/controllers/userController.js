@@ -54,7 +54,7 @@ export const login= async (req,res)=>{
         const [rows] = await db.query("SELECT * FROM users WHERE email = ?",[email]);
         
         if(rows.length === 0){
-            return res.status(400).json({msg:"email o contraseña incorrecta"});
+            return res.status(400).json({msg:"email no encontrado"});
         }
         const users = rows[0]
 

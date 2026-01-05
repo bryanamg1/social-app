@@ -13,36 +13,25 @@ import conversationsRouter from "./router/conversationsRouter.js"
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-const app = express()
+const app = express();
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
-const PORT = process.env.PORT || 8080
-
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
-app.use(cors())
-
-app.get("/", (req,res)=>{
-    res.send("servidor funcionando")
+app.get("/", (req, res) => {
+  res.send("servidor funcionando");
 });
-app.use("/api",routerUser);
 
-app.use("/api",followsrouter);
+app.use("/api", routerUser);
+app.use("/api", followsrouter);
 
 app.use("/api/posts", postsRouter);
+app.use("/api/comments", commentsRouter);
+app.use("/api/reactions", reactionsRouter);
+app.use("/api/image", imageRouter);
+app.use("/api/conversations", conversationsRouter);
 
-app.use("/api/comments", commentsRouter )
-
-app.use("/api/reactions", reactionsRouter)
-
-app.use("/api/image", imageRouter)
-
-app.use("/api/conversations",conversationsRouter)
-
-
-app.listen(PORT,()=>{
-    console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);
-    
-});
+export default app;

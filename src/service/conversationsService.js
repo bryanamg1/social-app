@@ -13,11 +13,10 @@ export const findConversationBetweenTwoUsers = async (db, userA, userB) => {
   return rows[0]?.conversation_id || null;
 };
 
-
 export const createConversation = async (db) => {
-    const [result] = await db.query(`insert into conversations () values ()`);
-    return result.insertId; 
-}
+  const [result] = await db.query(`INSERT INTO conversations () VALUES ()`);
+  return result.insertId;
+};
 
 export const addUsersToConversation = async (db, conversationId, userIds) => {
   const values = userIds.map((uid) => [conversationId, uid]);

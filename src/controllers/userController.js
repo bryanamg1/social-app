@@ -79,6 +79,10 @@ export const updateProfile = async (req,res) =>{
         const {user_name,bio,location}= req.body;
 
         const [existinguser]= await db.query ("SELECT * FROM users WHERE user_id = ?",[userId]);
+        const [duplicatename]= await db.query("SELECT * FROM users WHERE user_name = ?",[user_name]);
+                if(duplicatename.length > 0){
+            return res.status(400).json({msg: "este nombre de usuario ya existe"});
+        }
         if(existinguser.length === 0){
             return res.status(404).json({msg:"este usuario no existe"});
         }

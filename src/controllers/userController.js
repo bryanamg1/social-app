@@ -27,6 +27,10 @@ export const register = async (req,res)=>{
     try {
         const {user_name,email,password}= req.body;
         const [existinguser]= await db.query("SELECT * FROM users WHERE email = ?",[email]);
+        const [duplicatename]= await db.query("SELECT * FROM users WHERE user_name = ?",[user_name]);
+        if(duplicatename.length > 0){
+            return res.status(400).json({msg: "este nombre de usuario ya existe"});
+        }
         if(existinguser.length > 0){
             return res.status(400).json({msg: "este usario ya existe"});
         }else{
@@ -48,10 +52,12 @@ export const login= async (req,res)=>{
     try{
         const {email,password}=req.body;
         const [rows] = await db.query("SELECT * FROM users WHERE email = ?",[email]);
-        const users = rows[0]
-        if(users.length === 0){
-            return res.status(400).json({msg:"usuario no encontrado"});
+        
+        if(rows.length === 0){
+            return res.status(400).json({msg:"email o contraseña incorrecta"});
         }
+        const users = rows[0]
+
         const ismacht = await bcrypt.compare(password,users.password);
         if(!ismacht){
             return res.status(400).json({msg:"contraseña incorrecta"});
@@ -61,7 +67,7 @@ export const login= async (req,res)=>{
             return res.status(200).json({msg:"login exitoso",token});
     }
     catch(error){
-        res.status(500).json({msg:"error del servidor"});
+        res.status(500).json({msg:"error del servidor",error});
         console.error(error);
         
     }

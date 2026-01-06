@@ -73,7 +73,7 @@ export const addpost = async (req, res, next) => {
     }
 };
 
-export const allpost = async (req, res) =>{
+export const allpost = async (req, res, next) =>{
 try {
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.max(parseInt(req.query.limit) || 10, 1);
@@ -110,7 +110,7 @@ try {
 }
 };
 
-export const postByUserId = async (req, res) => {
+export const postByUserId = async (req, res, next) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit) || 10, 1);
@@ -164,7 +164,7 @@ export const postByUserId = async (req, res) => {
   }
 };
 
-export const postById = async (req, res) => {
+export const postById = async (req, res, next) => {
   try {
     const post_id = parseInt(req.params.id, 10);
 
@@ -210,7 +210,7 @@ export const postById = async (req, res) => {
   }
 };
 
-export const deletePostById = async (req, res) =>{
+export const deletePostById = async (req, res, next) =>{
   try {
     const postId = parseInt(req.params.id, 10)
 

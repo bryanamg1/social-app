@@ -9,6 +9,7 @@ import commentsRouter from "./router/commentsRouter.js";
 import reactionsRouter from "./router/reactionsRouter.js";
 import followsrouter from "./router/followsRouter.js";
 import imageRouter from "./router/imageRouter.js"
+import { errorHandler } from "./middleware/errorHandler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,7 @@ const PORT = process.env.PORT || 8080
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cors())
+
 
 app.get("/", (req,res)=>{
     res.send("servidor funcionando")
@@ -37,6 +39,8 @@ app.use("/api/comments", commentsRouter )
 app.use("/api/reactions", reactionsRouter)
 
 app.use("/api/image", imageRouter)
+
+app.use(errorHandler)
 
 
 app.listen(PORT,()=>{

@@ -1,7 +1,8 @@
 import db from "../config/db.js";
 import { insertPost, getPosts,deletePost, getPostById } from "../service/postsService.js";
+import { AppError } from "../utils/utils.js";
 
-export const addpost = async (req, res) => {
+export const addpost = async (req, res, next) => {
     try {
      const postData = req.body;
      const userId = parseInt(req.params.id, 10);
@@ -18,15 +19,34 @@ export const addpost = async (req, res) => {
     }
 
         if (isNaN(userId)) {
-     return res.status(400).json({ error: "Invalid or missing user ID" });
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
+          status: 400,
+          details: { param: req.params.id },
+        })
+      );
     }
 
     if (!postData || Object.keys(postData).length === 0) {
-      return res.status(400).json({ error: "No post data provided" });
+      return next(
+        new AppError({
+          code: "POST_DATA_EMPTY",
+          message: "No post data provided",
+          status: 400,
+        })
+      );
     }
 
     if (!postData.content || postData.content.trim() === "") {
-    return res.status(400).json({ error: "Post content is required" });
+      return next(
+        new AppError({
+          code: "POST_CONTENT_REQUIRED",
+          message: "Post content is required",
+          status: 400,
+        })
+      );
     }
 
     
@@ -42,7 +62,14 @@ export const addpost = async (req, res) => {
 
     } catch (error) {
         console.error('Error agregar post:', error);
-      res.status(500).json({ error: 'Error adding post' });
+      return next(
+        new AppError({
+          code: "POST_CREATE_FAILED",
+          message: "Error adding post",
+          status: 500,
+          details: error?.code || null,
+        })
+      );
     }
 };
 
@@ -55,17 +82,31 @@ try {
   const result = await getPosts(db, limit, offset)
 
   if (!result || result.length === 0) {
-  return res.status(404).json({
-    message: "⚠️ No se encontraron posts."
-  });
-}
+      return next(
+        new AppError({
+          code: "POSTS_NOT_FOUND",
+          message: "⚠️ No se encontraron posts.",
+          status: 404,
+          details: { page, limit },
+        })
+      );
+    }
 
   res.status(200).json({
     message: "✅ Posts retrieved successfully",
     posts: result
   });
 } catch (error) {
-     res.status(500).json({ error: "Error retrieving posts" }); 
+     console.error("❌ Error retrieving posts:", error);
+
+    return next(
+      new AppError({
+        code: "POSTS_LIST_FAILED",
+        message: "Error retrieving posts",
+        status: 500,
+        details: error?.code || null,
+      })
+    );
 }
 };
 
@@ -78,7 +119,14 @@ export const postByUserId = async (req, res) => {
 
     // 🔹 Validación del ID
     if (isNaN(userId)) {
-      return res.status(400).json({ error: "Invalid or missing user ID" });
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
+          status: 400,
+          details: { param: req.params.id },
+        })
+      );
     }
 
     // 🔹 Consulta al servicio
@@ -86,11 +134,15 @@ export const postByUserId = async (req, res) => {
 
     // 🔹 Si no hay resultados
     if (!result || result.length === 0) {
-  return res.status(404).json({
-    message: "⚠️ No se encontraron posts para este usuario.",
-    userId
-  });
-  }
+      return next(
+        new AppError({
+          code: "POSTS_NOT_FOUND",
+          message: "⚠️ No se encontraron posts.",
+          status: 404,
+          details: { page, limit },
+        })
+      );
+    }
 
     // 🔹 Respuesta exitosa
     res.status(200).json({
@@ -100,7 +152,15 @@ export const postByUserId = async (req, res) => {
 
   } catch (error) {
     console.error("❌ Error retrieving posts:", error);
-    res.status(500).json({ error: "Error retrieving posts" });
+
+    return next(
+      new AppError({
+        code: "POSTS_LIST_FAILED",
+        message: "Error retrieving posts",
+        status: 500,
+        details: error?.code || null,
+      })
+    );
   }
 };
 
@@ -108,26 +168,45 @@ export const postById = async (req, res) => {
   try {
     const post_id = parseInt(req.params.id, 10);
 
-    if (isNaN(post_id)) {
-      return res.status(400).json({ error: "invalid or missing ID" });
+    if (isNaN(userId)) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
+          status: 400,
+          details: { param: req.params.id },
+        })
+      );
     }
 
     const result = await getPostById(db, post_id);
 
     if (!result) {
-      return res.status(404).json({
-        message: "⚠️ Post no encontrado.",
-        post_id,
-      });
-    }
+  return next(
+    new AppError({
+      code: "POST_NOT_FOUND",
+      message: "⚠️ Post no encontrado.",
+      status: 404,
+      details: { post_id },
+    })
+  );
+}
 
     return res.status(200).json({
       message: "✅ Post retrieved successfully",
       post: result,
     });
   } catch (error) {
-    console.error("❌ Error retrieving post:", error);
-    return res.status(500).json({ error: "Error retrieving post" });
+    console.error("❌ Error retrieving posts:", error);
+
+    return next(
+      new AppError({
+        code: "POSTS_LIST_FAILED",
+        message: "Error retrieving posts",
+        status: 500,
+        details: error?.code || null,
+      })
+    );
   }
 };
 
@@ -135,15 +214,29 @@ export const deletePostById = async (req, res) =>{
   try {
     const postId = parseInt(req.params.id, 10)
 
-    if (isNaN(postId)){
-      return res.status(400).json({ error: "Invalid or missing comment ID" });
+    if (isNaN(userId)) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
+          status: 400,
+          details: { param: req.params.id },
+        })
+      );
     }
 
     const result = await deletePost(db, postId)
 
-    if (result.affectedRows === 0){
-      return res.status(400).json({error: "❌ Post not found"})
-    }
+    if (result.affectedRows === 0) {
+  return next(
+    new AppError({
+      code: "POST_NOT_FOUND",
+      message: "❌ Post not found",
+      status: 404,
+      details: { affectedRows: result.affectedRows },
+    })
+  );
+}
 
     res.status(200).json({
       message: "✅ Post deleted successfully",
@@ -151,8 +244,16 @@ export const deletePostById = async (req, res) =>{
     });
 
   } catch (error) {
-    console.error("❌ Error deleting post:", error)
-    res.status(500).json({error: "error deletoing post"})
+    console.error("❌ Error retrieving posts:", error);
+
+    return next(
+      new AppError({
+        code: "POSTS_LIST_FAILED",
+        message: "Error retrieving posts",
+        status: 500,
+        details: error?.code || null,
+      })
+    );
   }
 }
 

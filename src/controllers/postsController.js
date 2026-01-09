@@ -168,11 +168,12 @@ export const postById = async (req, res, next) => {
   try {
     const post_id = parseInt(req.params.id, 10);
 
-    if (isNaN(userId)) {
+
+    if (isNaN(post_id)) {
       return next(
         new AppError({
-          code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
+          code: "POST_ID_INVALID",
+          message: "Invalid or missing post ID",
           status: 400,
           details: { param: req.params.id },
         })

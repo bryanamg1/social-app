@@ -2,6 +2,7 @@ import db from "../config/db.js"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { searchUser } from "../service/usersService.js";
+import { AppError } from "../utils/utils.js";
 
 const SECRET_KEY = process.env.SECRET_KEY || "2025jwtdev";
 
@@ -23,16 +24,38 @@ export const profile = async (req,res)=>{
     }
 };
 
-export const register = async (req,res)=>{
+export const register = async (req,res,next)=>{
     try {
         const {user_name,email,password}= req.body;
         const [existinguser]= await db.query("SELECT * FROM users WHERE email = ?",[email]);
         const [duplicatename]= await db.query("SELECT * FROM users WHERE user_name = ?",[user_name]);
+            if (!email || !password) {
+            return next(
+        new AppError({
+        code: "REGISTER_DATA_MISSIN",
+        message: "los campos no pueden estar vacios",
+        status: 400,
+    })
+);
+        };
+
         if(duplicatename.length > 0){
-            return res.status(400).json({msg: "este nombre de usuario ya existe"});
-        }
+            return next(
+                new AppError({
+                    code:"USER_NAME_EXIST",
+                    message:"este nombre de usuario ya existe",
+                    status:409
+                })
+            );
+        };
         if(existinguser.length > 0){
-            return res.status(400).json({msg: "este usario email ya esta registrado"});
+            return next(
+                new AppError({
+                    code:"EMAIL_REGISTERED",
+                    message:"este email ya esta registrado",
+                    status:409
+                })
+            );
         }else{
         const hashedpassword= await bcrypt.hash(password,10);
         const [result] = await db.query("INSERT INTO users (user_name, email, password) VALUES (?, ?, ?)",[user_name, email, hashedpassword]);
@@ -40,51 +63,96 @@ export const register = async (req,res)=>{
         const token = jwt.sign({ user: { user_id: result.insertId, name: user_name, email } },SECRET_KEY,{ expiresIn: "1h" });
             res.status(201).json({msg: "Usuario registrado exitosamente",token,});
 }
-    } catch (error) {
-        res.status(500).json({msg:"server error"});
-        console.error(error);
-        
-        
-    }
+    }catch (error) {
+        return next(
+    new AppError({
+    code: "REGISTER_FAILED",
+    message: "Error al registrar usuario",
+    status: 500,
+    details: error?.code || error?.message || null,
+    })
+);
+}
 };
 
-export const login= async (req,res)=>{
+export const login= async (req,res,next)=>{
     try{
         const {email,password}=req.body;
+        if (!email || !password) {
+            return next(
+        new AppError({
+        code: "LOGIN_DATA_MISSIN",
+        message: "los campos no pueden estar vacios",
+        status: 400,
+    })
+);
+        }
+
+
         const [rows] = await db.query("SELECT * FROM users WHERE email = ?",[email]);
         
         if(rows.length === 0 || !rows){
-            return res.status(400).json({msg:"email no encontrado"});
+            return next(
+        new AppError({
+        code: "USER_NOT_FOUND",
+        message: "email no registrado",
+        status: 404,
+    })
+);
         }
         const users = rows[0]
 
         const ismacht = await bcrypt.compare(password,users.password);
         if(!ismacht){
-            return res.status(400).json({msg:"contraseña incorrecta"});
+            return next(
+        new AppError({
+        code: "INVALID_PASSWORD",
+        message: "contraseña incorrecta",
+        status: 401,
+    })
+);
         }
         const token = jwt.sign({ user: { user_id: users.user_id, name: users.user_name, email: users.email }}
         ,SECRET_KEY,{ expiresIn: "1h" });
             return res.status(200).json({msg:"login exitoso",token});
     }
-    catch(error){
-        res.status(500).json({msg:"error del servidor",error});
-        console.error(error);
-        
-    }
+catch (error) {
+        return next(
+    new AppError({
+    code: "LOGIN_FAILED",
+    message: "Error al iniciar sesión",
+    status: 500,
+    details: error?.code || error?.message || null,
+    })
+);
 }
 
-export const updateProfile = async (req,res) =>{
+}
+
+export const updateProfile = async (req,res,next) =>{
     try{
         const userId = req.user.user_id;
         const {user_name,bio,location}= req.body;
 
         const [existinguser]= await db.query ("SELECT * FROM users WHERE user_id = ?",[userId]);
         const [duplicatename]= await db.query("SELECT * FROM users WHERE user_name = ?",[user_name]);
-                if(duplicatename.length > 0){
-            return res.status(400).json({msg: "este nombre de usuario ya existe"});
-        }
+        if(duplicatename.length > 0){
+            return next(
+                new AppError({
+                    code:"USER_NAME_EXIST",
+                    message:"este nombre de usuario ya existe",
+                    status:409
+                })
+            );
+        };
         if(existinguser.length === 0){
-            return res.status(404).json({msg:"este usuario no existe"});
+            return next(
+                new AppError({
+                    code:"EMAIL_REGISTERED",
+                    message:"este usuario no existe",
+                    status:409
+                })
+            );
         }
         await db.query("UPDATE users SET user_name = ?, bio = ?, location = ? WHERE user_id = ?",
         [user_name,bio,location,userId]);
@@ -94,57 +162,91 @@ export const updateProfile = async (req,res) =>{
 
             return res.status(200).json({msg:"perfil actualizado exitosamente",token, data:{user_name,bio,location}});
     }
-    catch(error){
-        res.status(500).json({msg:"error al actualizar el perfil"});
-        console.error(error);
-    }
+catch (error) {
+        return next(
+    new AppError({
+    code: "UPDATE_PROFILE_FAILED",
+    message: "Error al actualizar el perfil",
+    status: 500,
+    details: error?.code || error?.message || null,
+    })
+);
+}
 };
 
-export const setImage = async (req, res) => {
-  try {
+export const setImage = async (req, res,next) => {
+    try {
     const userId = parseInt(req.params.userId, 10);
 
-    if (isNaN(userId)) {
-      return res.status(400).json({ error: "Invalid or missing user ID" });
+        if (isNaN(userId)) {
+    return next(
+        new AppError({
+        code: "USER_ID_INVALID",
+        message: "Invalid or missing user ID",
+        status: 400,
+        details: { param: req.params.userId },
+            })
+        );
     }
 
     let image_url = null;
 
     if (req.file) {
-      image_url = req.file.secure_url || req.file.path;
+        image_url = req.file.secure_url || req.file.path;
     } else if (req.body.image_url) {
-      image_url = req.body.image_url.trim();
+        image_url = req.body.image_url.trim();
     }
 
-    if (!image_url) {
-      return res.status(400).json({ error: "No image received" });
-    }
+if (!image_url) {
+    return next(
+    new AppError({
+    code: "IMAGE_REQUIRED",
+    message: "No se recibió ninguna imagen",
+    status: 400
+        })
+    );
+};
+
 
     const updateImageQuery = `
-      UPDATE users 
-      SET avatar_url = ? 
-      WHERE user_id = ?
+        UPDATE users 
+        SET avatar_url = ? 
+        WHERE user_id = ?
     `;
 
     await db.query(updateImageQuery, [image_url, userId]);
 
     return res.status(200).json({
-      message: "Imagen subida y actualizada correctamente",
-      avatar_url: image_url
+        message: "Imagen subida y actualizada correctamente",
+        avatar_url: image_url
     });
 
-  } catch (error) {
+} catch (error) {
     console.error("❌ Error cargando imagen:", error);
-    return res.status(500).json({ message: "Error cargando imagen", error });
-  }
+
+        return next(
+    new AppError({
+    code: "IMAGE_UPLOAD_ERROR",
+    message: "Error cargando imagen",
+    status: 500,
+    details: error?.message || null
+        })
+    );
+}
 };
 
-export const searchUserController = async (req, res) => {
+export const searchUserController = async (req, res,next) => {
     try {
         const { query } = req.query; // EXTRAES el valor correcto
 
         if (!query || query.trim() === "") {
-            return res.status(400).json({ error: "query requerida" });
+            return next(
+                new AppError({
+                    code: "SEARCH_QUERY_MISSING",
+                    message: "El parámetro de búsqueda es obligatorio",
+                    status: 400,
+                })
+            );
         }
 
         const sanitizedQuery = query.trim();
@@ -156,8 +258,16 @@ export const searchUserController = async (req, res) => {
             users: result,
         });
 
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: "error obteniendo usuario", error });
-    }
+    }catch (error) {
+    console.error(error);
+
+        return next(
+    new AppError({
+    code: "USER_FETCH_ERROR",
+    message: "Error obteniendo usuario",
+    status: 500,
+    details: error?.message || null
+        })
+    );
+};
 };

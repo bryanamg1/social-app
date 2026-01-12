@@ -31,6 +31,7 @@ export const getPosts = async (db, limit, offset, userId = null)=>{
       params.push(userId);
     }
 
+
     query += ` ORDER BY p.created_at DESC LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
@@ -41,6 +42,24 @@ export const getPosts = async (db, limit, offset, userId = null)=>{
         console.error("❌ Error reading posts", error);
         throw error;
     }
+};
+
+export const getPostById = async (db, post_id) => {
+  try {
+    const query = `
+      SELECT p.*, u.user_name 
+      FROM posts p
+      JOIN users u ON p.user_id = u.user_id
+      WHERE p.post_id = ?
+    `;
+
+    const [rows] = await db.query(query, [post_id]);
+    
+    return rows[0] || null; // Si no hay resultados, devolvemos null
+  } catch (error) {
+    console.error("❌ Error reading post", error);
+    throw error;
+  }
 };
 
 export const deletePost = async (db, postId)=>{

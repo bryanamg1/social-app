@@ -1,9 +1,10 @@
 import Router from "express";
-import upload from "../middleware/upload.js";
 import {setImage} from "../controllers/userController.js"
+import { optionalUpload } from "../utils/utils.js";
+import auth from "../middleware/auth.js";
 
 const router = Router();
 
-router.post('/uploadImage/:userId', upload.single("image"),setImage)
+router.post('/uploadImage/:userId', auth ,optionalUpload,setImage)
 
 export default router;

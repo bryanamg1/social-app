@@ -9,30 +9,92 @@ export const registerMessagesSocket = (io) => {
     console.log("🔌 Usuario conectado a /messages");
 
     socket.on("messages:join", async ({ conversation_id, user_id }) => {
-      const conversationId = parseInt(conversation_id, 10);
-      const userId = parseInt(user_id, 10);
+      try {
+        const conversationId = parseInt(conversation_id, 10);
+        const userId = parseInt(user_id, 10);
 
-      if (isNaN(conversationId) || isNaN(userId)) return;
+        if (Number.isNaN(conversationId) || Number.isNaN(userId)) {
+          return socket.emit("messages:error", {
+            code: "JOIN_PARAMS_INVALID",
+            message: "Invalid conversation_id or user_id",
+          });
+        }
 
-      const allowed = await userBelongsToConversation(db, conversationId, userId);
-      if (!allowed) return;
+        const allowed = await userBelongsToConversation(db, conversationId, userId);
+        if (!allowed) {
+          return socket.emit("messages:error", {
+            code: "JOIN_FORBIDDEN",
+            message: "No perteneces a esta conversación",
+          });
+        }
 
-      socket.join(`conv:${conversationId}`);
+        socket.join(`conv:${conversationId}`);
+
+        socket.emit("messages:joined", {
+          ok: true,
+          message: "✅ Te uniste a la conversación",
+          conversationId,
+        });
+      } catch (error) {
+        console.error("❌ messages:join error:", error);
+
+        socket.emit("messages:error", {
+          code: "JOIN_CONVERSATION_FAILED",
+          message: "Error al unirse a la conversación",
+        });
+      }
     });
 
     socket.on("messages:send", async ({ conversation_id, sender_id, content }) => {
-      const conversationId = parseInt(conversation_id, 10);
-      const senderId = parseInt(sender_id, 10);
-      const text = String(content ?? "").trim();
+      try {
+        const conversationId = parseInt(conversation_id, 10);
+        const senderId = parseInt(sender_id, 10);
+        const text = String(content ?? "").trim();
 
-      if (isNaN(conversationId) || isNaN(senderId) || !text) return;
+        if (isNaN(conversationId) || isNaN(senderId)) {
+          return socket.emit("messages:error", {
+            code: "MESSAGE_PARAMS_INVALID",
+            message: "Invalid conversation_id or sender_id",
+          });
+        }
 
-      const allowed = await userBelongsToConversation(db, conversationId, senderId);
-      if (!allowed) return;
+        if (!text) {
+          return socket.emit("messages:error", {
+            code: "MESSAGE_CONTENT_REQUIRED",
+            message: "El contenido del mensaje es obligatorio",
+          });
+        }
 
-      const message = await insertMessage(db, conversationId, senderId, text);
+        const allowed = await userBelongsToConversation(db, conversationId, senderId);
+        if (!allowed) {
+          return socket.emit("messages:error", {
+            code: "MESSAGE_FORBIDDEN",
+            message: "No perteneces a esta conversación",
+          });
+        }
 
-      nsp.to(`conv:${conversationId}`).emit("messages:new", message);
+        const message = await insertMessage(db, conversationId, senderId, text);
+
+        // 🔔 Broadcast del mensaje a la conversación
+        nsp.to(`conv:${conversationId}`).emit("messages:new", message);
+
+        // ✅ Confirmación SOLO al emisor
+        socket.emit("messages:sent", {
+          ok: true,
+          message: "✅ Mensaje enviado correctamente",
+          data: {
+            messageId: message.id || message.message_id,
+            conversationId,
+          },
+        });
+      } catch (error) {
+        console.error("❌ messages:send error:", error);
+
+        socket.emit("messages:error", {
+          code: "MESSAGE_SEND_FAILED",
+          message: "Error al enviar el mensaje",
+        });
+      }
     });
 
     socket.on("disconnect", () => {

@@ -9,9 +9,10 @@ import commentsRouter from "./router/commentsRouter.js";
 import reactionsRouter from "./router/reactionsRouter.js";
 import followsrouter from "./router/followsRouter.js";
 import imageRouter from "./router/imageRouter.js"
+import notificationrouter from "./router/notificationRouter.js";
 import http from "http";
 import {Server} from "socket.io";
-import { notificationSocket  } from "./socket/notificationSocket.js";
+import { notificationSocket  } from "./sockets/notificationSocket.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,6 +46,8 @@ app.use("/api/comments", commentsRouter )
 app.use("/api/reactions", reactionsRouter)
 
 app.use("/api/image", imageRouter)
+
+app.use("/api/notifications", notificationrouter);
 
 
 server.listen(PORT,()=>{

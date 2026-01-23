@@ -10,10 +10,6 @@ import reactionsRouter from "./router/reactionsRouter.js";
 import followsrouter from "./router/followsRouter.js";
 import imageRouter from "./router/imageRouter.js"
 import notificationrouter from "./router/notificationRouter.js";
-import http from "http";
-import {Server} from "socket.io";
-import { notificationSocket  } from "./sockets/notificationSocket.js";
-import imageRouter from "./router/imageRouter.js";
 import conversationsRouter from "./router/conversationsRouter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -25,56 +21,34 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const app = express();
 
-// Middlewares
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cors());
 
-const server = http.createServer(app);
-
-export const io = new Server(server,{cors:{origin: "*", methods: ["GET","POST"]}});
-notificationSocket(io);
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cors())
 
-app.get("/", (req,res)=>{
-    res.send("servidor funcionando")
-// Health check
+
 app.get("/", (req, res) => {
-  res.send("servidor funcionando");
+res.send("servidor funcionando");
 });
 
 // Rutas
 app.use("/api/auth", routerUser);
-  
+
 app.use("/api/follows", followsrouter);
-  
+
 app.use("/api/posts", postsRouter);
-  
-app.use("/api/comments", commentsRouter);
-  
-app.use("/api/reactions", reactionsRouter);
-  
+
 app.use("/api/image", imageRouter);
-  
+
 app.use("/api/conversations", conversationsRouter);
 
 app.use("/api/comments", commentsRouter )
 
 app.use("/api/reactions", reactionsRouter)
 
-app.use("/api/image", imageRouter)
-
 app.use("/api/notifications", notificationrouter);
 
-
-server.listen(PORT,()=>{
-    console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);
-    
-});
-// Error handler (al final)
 app.use(errorHandler);
 
 export default app;

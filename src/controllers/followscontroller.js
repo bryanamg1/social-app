@@ -12,22 +12,41 @@ export const followUser = async (req, res) =>{
             [followerid]);
 
         if (userExists.length === 0) {
-            return res.status(404).json({msg:"Este usuario no existe"});
+            return next(
+                new AppError({
+                    code:"EMAIL_REGISTERED",
+                    message:"este usuario no existe",
+                    status:409
+                })
+            );
         }
         const [following] = await db.query("SELECT * FROM follows WHERE follower_id = ? AND followed_id = ?", 
             [followidUser, followerid]);
 
         if (following.length > 0) {
-            return res.status(409).json({msg: "Ya estas siguiendo a este usuario "});
+            return next(
+                new AppError({
+                    code:"FOLLOW_USER",
+                    message:"ya sigues a este usuario",
+                    status:409
+                })
+            );
         }
 
         await db.query("INSERT INTO follows (follower_id, followed_id, created_at) Values (?,?,NOW())",
             [followidUser, followerid]
         );
         res.status(201).json({msg:"Seguiendo al usuario"});
-    } catch(error){
-        res.status(500).json({msg:"error al seguir"});
-        console.error(error);
+    }catch (error) {
+    console.error("❌ Error al seguir usuario:", error);
+        return next(
+            new AppError({
+                code: "FOLLOW_USER_ERROR",
+                message: "Error al seguir al usuario",
+                status: 500,
+                details: error?.message || null,
+            })
+        );
     }
 };
 

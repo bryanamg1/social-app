@@ -1,6 +1,6 @@
 import { getnotifications, createNotification, markallseen, markseen } from "../service/notificationService.js";
 import {io} from '../app.js';
-/* import { AppError } from "../utils/utils.js"; */
+import { AppError } from "../utils/utils.js";
 
 export const UserNotifications = async (req, res, next) => {
     try {

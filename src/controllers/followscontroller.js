@@ -1,4 +1,5 @@
 import db from "../config/db.js";
+import { AppError } from "../utils/utils.js";
 
 export const followUser = async (req, res) =>{
     try{

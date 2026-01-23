@@ -1,10 +1,10 @@
 import { Router } from "express";
-import {createOrGetConversations, getMyconversations, getConversationsMessges } from "../controllers/conversationController.js"
+import {createOrGetConversations,getMyConversations,getConversationsMessages} from "../controllers/conversationController.js";
 
 const router = Router();
 
 router.post('/addConversations', createOrGetConversations);
-router.get('/myConversations', getMyconversations);
-router.get('/readMessage/:id/message', getConversationsMessges);
+router.get('/myConversations', getMyConversations);
+router.get('/readMessage/:id/message', getConversationsMessages);
 
-export default router;
+export default router

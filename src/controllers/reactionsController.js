@@ -1,189 +1,510 @@
 import db from "../config/db.js";
+import {AppError} from "../utils/utils.js"
 
-export const toggleReactionPost = async (req, res) => {
+export const toggleReactionPost = async (req, res, next) => {
   try {
-    const { status } = req.body;
-    const userId = parseInt(req.params.userId, 10);
-    const postId = parseInt(req.params.postId, 10);
+    const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
+    const userId = Number(req.params.userId);
+    const postId = Number(req.params.postId);
 
-    if (isNaN(userId)) {
-      return res.status(400).json({ error: "Invalid or missing user ID" });
+    // ✅ validations
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
+          status: 400,
+          details: { param: req.params.userId },
+        })
+      );
     }
 
-    if (isNaN(postId)) {
-      return res.status(400).json({ error: "Invalid or missing post ID" });
+    if (!Number.isInteger(postId) || postId <= 0) {
+      return next(
+        new AppError({
+          code: "POST_ID_INVALID",
+          message: "Invalid or missing post ID",
+          status: 400,
+          details: { param: req.params.postId },
+        })
+      );
     }
 
     if (!status) {
-      return res.status(400).json({ error: "status requerido" });
+      return next(
+        new AppError({
+          code: "REACTION_STATUS_REQUIRED",
+          message: "status requerido",
+          status: 400,
+        })
+      );
     }
 
-    if (!['LIKE', 'DISLIKE', 'LOVE', 'HAHA', 'WOW', 'SAD'].includes(status)) {
-      return res.status(400).json({
-        error: 'status debe ser LIKE, DISLIKE, LOVE, HAHA, WOW o SAD'
-      });
+    const validReactions = ["LIKE", "DISLIKE", "LOVE", "HAHA", "WOW", "SAD"];
+    if (!validReactions.includes(status)) {
+      return next(
+        new AppError({
+          code: "REACTION_STATUS_INVALID",
+          message: "status debe ser LIKE, DISLIKE, LOVE, HAHA, WOW o SAD",
+          status: 400,
+          details: { allowed: validReactions, received: status },
+        })
+      );
     }
 
     // Buscar reacción existente
     const [existing] = await db.query(
-      'SELECT reaction_type FROM post_reactions WHERE user_id = ? AND post_id = ?',
+      "SELECT reaction_type FROM post_reactions WHERE user_id = ? AND post_id = ?",
       [userId, postId]
     );
 
-    // Si ya existe una reacción del usuario
+    // Ya existe una reacción
     if (existing.length > 0) {
       const currentReaction = existing[0].reaction_type;
 
-      // Si la nueva reacción es igual → eliminar
+      // Misma reacción → eliminar
       if (currentReaction === status) {
         await db.query(
-          'DELETE FROM post_reactions WHERE user_id = ? AND post_id = ?',
+          "DELETE FROM post_reactions WHERE user_id = ? AND post_id = ?",
           [userId, postId]
         );
-        return res.json({ message: `Reacción eliminada (${status})` });
+
+        return res.status(200).json({
+          ok: true,
+          message: `Reacción eliminada (${status})`,
+          data: {
+            status: false,
+            reaction: null,
+            userId,
+            postId,
+          },
+        });
       }
 
-      // Si es distinta → actualizar
+      // Reacción distinta → actualizar
       await db.query(
-        'UPDATE post_reactions SET reaction_type = ? WHERE user_id = ? AND post_id = ?',
+        "UPDATE post_reactions SET reaction_type = ? WHERE user_id = ? AND post_id = ?",
         [status, userId, postId]
       );
-      return res.json({ message: `Reacción actualizada a ${status}` });
+
+      return res.status(200).json({
+        ok: true,
+        message: `Reacción actualizada a ${status}`,
+        data: {
+          status: true,
+          reaction: status,
+          userId,
+          postId,
+        },
+      });
     }
 
-    // Si no existe → crear nueva
+    // No existe → crear nueva
     await db.query(
-      'INSERT INTO post_reactions (user_id, post_id, reaction_type) VALUES (?, ?, ?)',
+      "INSERT INTO post_reactions (user_id, post_id, reaction_type) VALUES (?, ?, ?)",
       [userId, postId, status]
     );
 
-    return res.json({ message: `Reacción registrada: ${status}` });
-
+    return res.status(201).json({
+      ok: true,
+      message: `Reacción registrada: ${status}`,
+      data: {
+        status: true,
+        reaction: status,
+        userId,
+        postId,
+      },
+    });
   } catch (error) {
-    console.error('Error al manejar la reacción:', error);
-    res.status(500).json({ error: 'Error al manejar la reacción' });
+    console.error("Error al manejar la reacción:", error);
+
+    return next(
+      new AppError({
+        code: "POST_REACTION_TOGGLE_FAILED",
+        message: "Error al manejar la reacción",
+        status: 500,
+        details: error?.code || error?.message || null,
+      })
+    );
   }
 };
 
 
-export const getReactionsByPost = async (req, res) => {
+export const getReactionsByPost = async (req, res, next) => {
   try {
-    const  postId  = parseInt(req.params.postId, 10);
+    const postId = parseInt(req.params.postId, 10);
 
-    if (isNaN(postId)) {
-     return res.status(400).json({ error: "Invalid or missing post ID" });
-    };
+    if (Number.isNaN(postId)) {
+      return next(
+        new AppError({
+          code: "POST_ID_INVALID",
+          message: "Invalid or missing post ID",
+          status: 400,
+          details: { param: req.params.postId },
+        })
+      );
+    }
 
     const [results] = await db.query(
-      'SELECT reaction_type, COUNT(*) AS count FROM post_reactions WHERE post_id = ? GROUP BY reaction_type',
+      "SELECT reaction_type, COUNT(*) AS count FROM post_reactions WHERE post_id = ? GROUP BY reaction_type",
       [postId]
     );
 
-    if (results.length === 0) {
-  return res.status(400).json({
-    message: "No se encontraron reacciones para el post ID",
-    postId
-    });
-    };
-
-    res.json(results);
-
-  } catch (error) {
-    console.error('Error al obtener reacciones:', error);
-    res.status(500).json({ error: 'Error al obtener reacciones' });
-  }
-};
-
-export const toggleReactionComment = async (req, res) =>{
-    try {
-        const {status} = req.body
-        const userId = parseInt(req.params.userId, 10)
-        const commentId = parseInt(req.params.commentId, 10)
-
-        if (isNaN(userId)) {
-      return res.status(400).json({ error: "Invalid or missing user ID" });
+    if (!results || results.length === 0) {
+      return next(
+        new AppError({
+          code: "POST_REACTIONS_NOT_FOUND",
+          message: "No se encontraron reacciones para el post ID",
+          status: 404,
+          details: { postId },
+        })
+      );
     }
 
-        if (isNaN(commentId)) {
-      return res.status(400).json({ error: "Invalid or missing comment ID" });
+    return res.status(200).json({
+      ok: true,
+      message: "✅ Reactions retrieved successfully",
+      data: {
+        postId,
+        reactions: results,
+      },
+    });
+  } catch (error) {
+    console.error("Error al obtener reacciones:", error);
+
+    return next(
+      new AppError({
+        code: "POST_REACTIONS_READ_FAILED",
+        message: "Error al obtener reacciones",
+        status: 500,
+        details: error?.code || error?.message || null,
+      })
+    );
+  }
+};;
+
+export const toggleReactionComment = async (req, res, next) => {
+  try {
+    const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
+    const userId = parseInt(req.params.userId, 10);
+    const commentId = parseInt(req.params.commentId, 10);
+
+    // ✅ validations
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
+          status: 400,
+          details: { param: req.params.userId },
+        })
+      );
+    }
+
+    if (!Number.isInteger(commentId) || commentId <= 0) {
+      return next(
+        new AppError({
+          code: "COMMENT_ID_INVALID",
+          message: "Invalid or missing comment ID",
+          status: 400,
+          details: { param: req.params.commentId },
+        })
+      );
     }
 
     if (!status) {
-      return res.status(400).json({ error: "status requerido" });
+      return next(
+        new AppError({
+          code: "REACTION_STATUS_REQUIRED",
+          message: "status requerido",
+          status: 400,
+        })
+      );
     }
 
-    if (!['LIKE', 'DISLIKE', 'LOVE', 'HAHA', 'WOW', 'SAD'].includes(status)) {
-      return res.status(400).json({
-        error: 'status debe ser LIKE, DISLIKE, LOVE, HAHA, WOW o SAD'
-      });
+    const validReactions = ["LIKE", "DISLIKE", "LOVE", "HAHA", "WOW", "SAD"];
+    if (!validReactions.includes(status)) {
+      return next(
+        new AppError({
+          code: "REACTION_STATUS_INVALID",
+          message: "status debe ser LIKE, DISLIKE, LOVE, HAHA, WOW o SAD",
+          status: 400,
+          details: { allowed: validReactions, received: status },
+        })
+      );
     }
 
     // Buscar reacción existente
     const [existing] = await db.query(
-      'SELECT reaction_type FROM comment_reactions WHERE user_id = ? AND comment_id = ?',
+      "SELECT reaction_type FROM comment_reactions WHERE user_id = ? AND comment_id = ?",
       [userId, commentId]
     );
 
-        // Si ya existe una reacción del usuario
+    // Ya existe una reacción
     if (existing.length > 0) {
       const currentReaction = existing[0].reaction_type;
 
-      // Si la nueva reacción es igual → eliminar
+      // Misma reacción → eliminar
       if (currentReaction === status) {
         await db.query(
-          'DELETE FROM comment_reactions WHERE user_id = ? AND comment_id = ?',
+          "DELETE FROM comment_reactions WHERE user_id = ? AND comment_id = ?",
           [userId, commentId]
         );
-        return res.json({ message: `Reacción eliminada (${status})` });
+
+        return res.status(200).json({
+          ok: true,
+          message: `Reacción eliminada (${status})`,
+          data: {
+            status: false,
+            reaction: null,
+            userId,
+            commentId,
+          },
+        });
       }
 
-      // Si es distinta → actualizar
+      // Reacción distinta → actualizar
       await db.query(
-        'UPDATE comment_reactions SET reaction_type = ?  WHERE user_id = ? AND comment_id = ?',
+        "UPDATE comment_reactions SET reaction_type = ? WHERE user_id = ? AND comment_id = ?",
         [status, userId, commentId]
       );
-      return res.json({ message: `Reacción actualizada a ${status}` });
+
+      return res.status(200).json({
+        ok: true,
+        message: `Reacción actualizada a ${status}`,
+        data: {
+          status: true,
+          reaction: status,
+          userId,
+          commentId,
+        },
+      });
     }
 
-    // Si no existe → crear nueva
+    // No existe → crear nueva
     await db.query(
-      'INSERT INTO comment_reactions (user_id, comment_id, reaction_type) VALUES (?, ?, ?)',
+      "INSERT INTO comment_reactions (user_id, comment_id, reaction_type) VALUES (?, ?, ?)",
       [userId, commentId, status]
     );
 
-    return res.json({ message: `Reacción registrada: ${status}` });
+    return res.status(201).json({
+      ok: true,
+      message: `Reacción registrada: ${status}`,
+      data: {
+        status: true,
+        reaction: status,
+        userId,
+        commentId,
+      },
+    });
+  } catch (error) {
+    console.error("Error al manejar la reacción:", error);
 
-    } catch (error) {
-        console.error('Error al manejar la reacción:', error);
-        res.status(500).json({ error: 'Error al manejar la reacción' });
-    }
-}
+    return next(
+      new AppError({
+        code: "COMMENT_REACTION_TOGGLE_FAILED",
+        message: "Error al manejar la reacción",
+        status: 500,
+        details: error?.code || error?.message || null,
+      })
+    );
+  }
+};
 
 
-export const getReactionsByComment = async (req, res) => {
+export const getReactionsByComment = async (req, res, next) => {
   try {
-    const  commentId  = parseInt(req.params.commentId, 10);
+    const commentId = parseInt(req.params.commentId, 10);
 
-    if (isNaN(commentId)) {
-     return res.status(400).json({ error: "Invalid or missing post ID" });
-    };
+    if (Number.isNaN(commentId)) {
+      return next(
+        new AppError({
+          code: "COMMENT_ID_INVALID",
+          message: "Invalid or missing comment ID",
+          status: 400,
+          details: { param: req.params.commentId },
+        })
+      );
+    }
 
     const [results] = await db.query(
-      'SELECT reaction_type, COUNT(*) AS count FROM comment_reactions WHERE comment_id = ? GROUP BY reaction_type',
+      "SELECT reaction_type, COUNT(*) AS count FROM comment_reactions WHERE comment_id = ? GROUP BY reaction_type",
       [commentId]
     );
 
-    if (results.length === 0) {
-  return res.status(400).json({
-    message: "No se encontraron reacciones para el post ID",
-    commentId
-    });
-    };
+    if (!results || results.length === 0) {
+      return next(
+        new AppError({
+          code: "COMMENT_REACTIONS_NOT_FOUND",
+          message: "No se encontraron reacciones para el comment ID",
+          status: 404,
+          details: { commentId },
+        })
+      );
+    }
 
-    res.json(results);
+    return res.status(200).json({
+      ok: true,
+      message: "✅ Reactions retrieved successfully",
+      data: {
+        commentId,
+        reactions: results,
+      },
+    });
+  } catch (error) {
+    console.error("Error al obtener reacciones:", error);
+
+    return next(
+      new AppError({
+        code: "COMMENT_REACTIONS_READ_FAILED",
+        message: "Error al obtener reacciones",
+        status: 500,
+        details: error?.code || error?.message || null,
+      })
+    );
+  }
+};
+
+export const getMyReactionByPost = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.uid, 10);
+    const postId = parseInt(req.params.pid, 10);
+
+    if (isNaN(userId)) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
+          status: 400,
+          details: { param: req.params.uid },
+        })
+      );
+    }
+
+    if (isNaN(postId)) {
+      return next(
+        new AppError({
+          code: "POST_ID_INVALID",
+          message: "Invalid or missing post ID",
+          status: 400,
+          details: { param: req.params.pid },
+        })
+      );
+    }
+
+    const [rows] = await db.query(
+      "SELECT reaction_type FROM post_reactions WHERE user_id = ? AND post_id = ?",
+      [userId, postId]
+    );
+
+    // 🟡 No existe reacción
+    if (rows.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        message: "El usuario no ha reaccionado a este post",
+        data: {
+          reaction: null,
+          userId,
+          postId,
+        },
+      });
+    }
+
+    // 🟢 Existe reacción
+    const currentReaction = rows[0].reaction_type;
+
+    return res.status(200).json({
+      ok: true,
+      message: "Reacción obtenida",
+      data: {
+        reaction: currentReaction,
+        userId,
+        postId,
+      },
+    });
 
   } catch (error) {
-    console.error('Error al obtener reacciones:', error);
-    res.status(500).json({ error: 'Error al obtener reacciones' });
+    console.error("Error al obtener reacciones:", error);
+
+    return next(
+      new AppError({
+        code: "POST_REACTIONS_READ_FAILED",
+        message: "Error al obtener reacciones",
+        status: 500,
+        details: error?.code || error?.message || null,
+      })
+    );
+  }
+};
+
+export const getMyReactionByComment = async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.uid, 10);
+    const commentId = parseInt(req.params.cid, 10);
+
+    if (isNaN(userId)) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
+          status: 400,
+          details: { param: req.params.uid },
+        })
+      );
+    }
+
+    if (isNaN(commentId)) {
+      return next(
+        new AppError({
+          code: "POST_ID_INVALID",
+          message: "Invalid or missing post ID",
+          status: 400,
+          details: { param: req.params.cid },
+        })
+      );
+    }
+
+    const [rows] = await db.query(
+      "SELECT reaction_type FROM comment_reactions WHERE user_id = ? AND comment_id = ?",
+      [userId, commentId]
+    );
+
+    // 🟡 No existe reacción
+    if (rows.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        message: "El usuario no ha reaccionado a este comentario",
+        data: {
+          reaction: null,
+          userId,
+          commentId,
+        },
+      });
+    }
+
+    // 🟢 Existe reacción
+    const currentReaction = rows[0].reaction_type;
+
+    return res.status(200).json({
+      ok: true,
+      message: "Reacción obtenida",
+      data: {
+        reaction: currentReaction,
+        userId,
+        commentId,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error al obtener reacciones:", error);
+
+    return next(
+      new AppError({
+        code: "comment_REACTIONS_READ_FAILED",
+        message: "Error al obtener reacciones",
+        status: 500,
+        details: error?.code || error?.message || null,
+      })
+    );
   }
 };

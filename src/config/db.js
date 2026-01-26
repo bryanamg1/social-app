@@ -5,10 +5,13 @@ dotenv.config();
 
 const env = process.env;
 
-let db;
+let dbConfig;
 
 if (env.DATABASE_URL) {
-  db = mysql.createPool(env.DATABASE_URL);
+  dbConfig = {
+    uri: env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false } // 🚨 CLAVE EN RAILWAY
+  };
 } else {
   const host = env.DB_HOST || env.MYSQLHOST;
   const user = env.DB_USER || env.MYSQLUSER;
@@ -17,36 +20,29 @@ if (env.DATABASE_URL) {
   const port = parseInt(env.DB_PORT || env.MYSQLPORT || "3306", 10);
 
   if (!host || !user || !database) {
-    throw new Error(
-      "Missing DB env vars. Need DB_HOST/DB_USER/DB_NAME or DATABASE_URL."
-    );
+    throw new Error("Missing DB env vars.");
   }
 
-  db = mysql.createPool({
+  dbConfig = {
     host,
     user,
-    port,
     password,
     database,
+    port,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
     connectTimeout: 10000,
     enableKeepAlive: true,
     keepAliveInitialDelay: 0,
-  });
+    ssl: { rejectUnauthorized: false } // 🚨 TAMBIÉN AQUÍ
+  };
 }
 
-db.getConnection()
-  .then((conn) => {
-    console.log("DB pool connected");
-    conn.release();
-  })
-  .catch((err) => {
-    console.error("DB connection failed", {
-      code: err?.code,
-      message: err?.message,
-    });
-  });
+const db = env.DATABASE_URL
+  ? mysql.createPool(env.DATABASE_URL + "?ssl={" + '"rejectUnauthorized":false}')
+  : mysql.createPool(dbConfig);
+
+console.log("✅ MySQL pool created");
 
 export default db;

@@ -15,11 +15,11 @@ const io = new Server(server, {
     methods: ["GET", "POST"]
   }
 });
-/* setIO(io);
+setIO(io);
 // Registrar sockets
 notificationSocket(io);
 registerMessagesSocket(io);
- */
+
 // Levantar servidor (Express + Socket en el MISMO puerto)
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);

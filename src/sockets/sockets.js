@@ -5,7 +5,7 @@ export const setIO = (io) => {
 };
 
 export const getIO = () => {
-     if (!ioInstance) {
+    if (!ioInstance) {
     throw new Error("Socket.io no ha sido inicializado todavía");
 }
     return ioInstance;

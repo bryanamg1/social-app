@@ -3,6 +3,13 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+console.log("ENV CHECK", {
+  DATABASE_URL: !!process.env.DATABASE_URL,
+  DB_HOST: process.env.DB_HOST,
+  MYSQLHOST: process.env.MYSQLHOST
+});
+
+
 const env = process.env;
 
 let db;

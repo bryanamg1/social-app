@@ -151,14 +151,13 @@ export const getReactionsByPost = async (req, res, next) => {
     );
 
     if (!results || results.length === 0) {
-      return next(
-        new AppError({
-          code: "POST_REACTIONS_NOT_FOUND",
-          message: "No se encontraron reacciones para el post ID",
-          status: 404,
-          details: { postId },
-        })
-      );
+      return res.status(204).json({
+        ok: true,
+        message: "no hay reacciones para este post",
+        data:{
+          postId
+        }
+      })
     }
 
     return res.status(200).json({
@@ -333,14 +332,13 @@ export const getReactionsByComment = async (req, res, next) => {
     );
 
     if (!results || results.length === 0) {
-      return next(
-        new AppError({
-          code: "COMMENT_REACTIONS_NOT_FOUND",
-          message: "No se encontraron reacciones para el comment ID",
-          status: 404,
-          details: { commentId },
-        })
-      );
+      return res.status(204).json({
+        ok: true,
+        message: "no hay reacciones para este comentario",
+        data: {
+          commentId
+        }
+      })
     }
 
     return res.status(200).json({
@@ -399,7 +397,7 @@ export const getMyReactionByPost = async (req, res, next) => {
 
     // 🟡 No existe reacción
     if (rows.length === 0) {
-      return res.status(200).json({
+      return res.status(204).json({
         ok: true,
         message: "El usuario no ha reaccionado a este post",
         data: {
@@ -471,7 +469,7 @@ export const getMyReactionByComment = async (req, res, next) => {
 
     // 🟡 No existe reacción
     if (rows.length === 0) {
-      return res.status(200).json({
+      return res.status(204).json({
         ok: true,
         message: "El usuario no ha reaccionado a este comentario",
         data: {

@@ -4,6 +4,7 @@ import app from "./app.js";
 import { registerMessagesSocket } from "./sockets/message.socket.js";
 import { notificationSocket  } from "./sockets/notificationSocket.js";
 import {setIO} from "./sockets/sockets.js";
+import { connectRedis } from "./config/redis.js";
 
 const PORT = process.env.PORT || 8080;
 
@@ -21,7 +22,17 @@ notificationSocket(io);
 registerMessagesSocket(io);
 
 // Levantar servidor (Express + Socket en el MISMO puerto)
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);
-  console.log(`✅ Socket namespace: /messages`);
-});
+async function startServer() {
+  try {
+    await connectRedis(); // ✅ conecta Redis si existe REDIS_URL
+  } catch (error) {
+    console.error("⚠️ Redis no disponible, continúo sin cache");
+  }
+
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);
+    console.log(`✅ Socket namespace: /messages`);
+  });
+}
+
+startServer()

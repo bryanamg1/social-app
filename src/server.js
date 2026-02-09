@@ -26,8 +26,8 @@ async function startServer() {
   try {
     await connectRedis(); // ✅ conecta Redis si existe REDIS_URL
   } catch (error) {
-    console.error("⚠️ Redis no disponible, continúo sin cache");
-  }
+    console.error("⚠️ Redis no disponible, continúo sin cache", error?.message || error);
+  } 
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`✅ Servidor iniciado en: http://localhost:${PORT}`);

@@ -1,8 +1,9 @@
-import db from "../config/db.js";
+import {getDB} from "../config/db.js";
 import { AppError } from "../utils/utils.js";
 
 export const followUser = async (req, res) =>{
     try{
+        const db = getDB();
         const followerid = req.params.id;
         const followidUser = req.user.user_id;
         if (Number(followidUser) === Number(followerid)) {
@@ -52,6 +53,7 @@ export const followUser = async (req, res) =>{
 
 export const unfollowUser = async (req, res)=>{
     try{
+        const db = getDB();
         const unfollowerid = req.params.id;
         const unfollowidUser = req.user.user_id;
 
@@ -76,6 +78,7 @@ export const unfollowUser = async (req, res)=>{
 
 export const feedfollowers = async (req,res)=>{
     try {
+        const db = getDB();
         const userId = req.user.user_id;
         const [feed] = await db.query(
             `SELECT p.post_id, p.content, p.image_url, p.created_at, u.user_id, u.user_name FROM posts p

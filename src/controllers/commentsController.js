@@ -1,4 +1,4 @@
-import db from "../config/db.js";
+import {getDB} from "../config/db.js";
 import { insertComment, readComments } from "../service/commentService.js";
 
 export const addComment = async (req, res) =>{

@@ -1,4 +1,4 @@
-import db from "../config/db.js";
+import {getDB} from "../config/db.js";
 import {AppError} from "../utils/utils.js"
 
 export const toggleReactionPost = async (req, res, next) => {

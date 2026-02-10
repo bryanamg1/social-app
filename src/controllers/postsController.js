@@ -1,6 +1,7 @@
-import db from "../config/db.js";
-import { insertPost, getPosts,deletePost, getPostById } from "../service/postsService.js";
+import {getDB} from "../config/db.js";
+import { insertPost, getPosts,deletePost, getPostById, countposts } from "../service/postsService.js";
 import { AppError } from "../utils/utils.js";
+import { pagination } from "../utils/pagination.js";
 
 export const addpost = async (req, res, next) => {
     try {
@@ -75,11 +76,10 @@ export const addpost = async (req, res, next) => {
 
 export const allpost = async (req, res, next) =>{
 try {
-  const page = Math.max(parseInt(req.query.page) || 1, 1);
-  const limit = Math.max(parseInt(req.query.limit) || 10, 1);
-  const offset = (page -1) * limit;
+const { page, limit, offset } = pagination(req);
 
   const result = await getPosts(db, limit, offset)
+  const total = await countposts(db);
 
   if (!result || result.length === 0) {
       return next(
@@ -92,10 +92,16 @@ try {
       );
     }
 
-  res.status(200).json({
-    message: "✅ Posts retrieved successfully",
-    posts: result
-  });
+
+    res.status(200).json({
+      data: result,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
 } catch (error) {
      console.error("❌ Error retrieving posts:", error);
 

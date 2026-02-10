@@ -1,8 +1,7 @@
-import db from "../config/db.js";
+import {getDB} from "../config/db.js";
 import {findConversationBetweenTwoUsers,createConversation,addUsersToConversation,userBelongsToConversation,getMessagesByConversation,getUserConversations} from "../service/conversationsService.js";
 import { insertMessage } from "../service/messageService.js";
 import { AppError } from "../utils/utils.js";
-
 
 export const createOrGetConversations = async (req, res, next) => {
   try {

@@ -1,9 +1,10 @@
-import db from '../config/db.js';
+import {getDB} from '../config/db.js';
 import { getIO } from '../sockets/sockets.js';
 
 
 
 export const createNotification = async (userId, type,relateId,from_userId) => {
+    const db = getDB();
         const [result] = await db.query(
             'INSERT INTO notifications (user_id, type, relate_id, from_userId) VALUES (?,?,?,?)',
             [userId, type, relateId,from_userId]
@@ -24,6 +25,7 @@ export const createNotification = async (userId, type,relateId,from_userId) => {
 }
 
 export const getnotifications = async (userId)=>{
+    const db = getDB();
     const [rows] = await db.query(
         'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
         [userId]
@@ -32,6 +34,7 @@ export const getnotifications = async (userId)=>{
 }
 
 export const markseen = async (notificationId, userId) =>{
+    const db = getDB();
     await db.query(
         'UPDATE notifications SET seen = 1 WHERE id = ? AND user_id = ?',
         [notificationId, userId]
@@ -45,6 +48,7 @@ export const markseen = async (notificationId, userId) =>{
 }
 
 export const markallseen = async (userId) => {
+    const db = getDB();
     await db.query(
         'UPDATE notifications SET seen = 1 WHERE user_id = ?',
         [userId]

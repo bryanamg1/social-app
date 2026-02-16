@@ -51,7 +51,7 @@ export async function setCache(key, ttl, value) {
     }
 }
 
-export async function invalidateCahce(pattern) {
+export async function invalidateCache(pattern) {
     try {
         const client = getRedisClient();
 

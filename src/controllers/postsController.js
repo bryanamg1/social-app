@@ -1,6 +1,7 @@
 import db from "../config/db.js";
 import { insertPost, getPosts,deletePost, getPostById } from "../service/postsService.js";
 import { AppError } from "../utils/utils.js";
+import { getCache, setCache } from "../cache/cacheHelpers.js";
 
 export const addpost = async (req, res, next) => {
     try {
@@ -73,15 +74,22 @@ export const addpost = async (req, res, next) => {
     }
 };
 
-export const allpost = async (req, res, next) =>{
-try {
-  const page = Math.max(parseInt(req.query.page) || 1, 1);
-  const limit = Math.max(parseInt(req.query.limit) || 10, 1);
-  const offset = (page -1) * limit;
+export const allpost = async (req, res, next) => {
+  try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.max(parseInt(req.query.limit) || 10, 1);
+    const offset = (page - 1) * limit;
 
-  const result = await getPosts(db, limit, offset)
+    const cacheKey = `posts:list:page=${page}&limit=${limit}`;
 
-  if (!result || result.length === 0) {
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
+    const result = await getPosts(db, limit, offset);
+
+    if (!result || result.length === 0) {
       return next(
         new AppError({
           code: "POSTS_NOT_FOUND",
@@ -92,12 +100,18 @@ try {
       );
     }
 
-  res.status(200).json({
-    message: "✅ Posts retrieved successfully",
-    posts: result
-  });
-} catch (error) {
-     console.error("❌ Error retrieving posts:", error);
+    const response = {
+      message: "✅ Posts retrieved successfully",
+      posts: result,
+    };
+
+
+    await setCache(cacheKey, 60, response);
+
+    return res.status(200).json(response);
+
+  } catch (error) {
+    console.error("❌ Error retrieving posts:", error);
 
     return next(
       new AppError({
@@ -107,7 +121,7 @@ try {
         details: error?.code || null,
       })
     );
-}
+  }
 };
 
 export const postByUserId = async (req, res, next) => {

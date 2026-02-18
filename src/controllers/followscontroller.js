@@ -136,7 +136,6 @@ export const feedfollowers = async (req,res, next)=>{
         }
 
         const db = getDB();
-        const userId = req.user.user_id;
         const [feed] = await db.query(
             `SELECT p.post_id, p.content, p.image_url, p.created_at, u.user_id, u.user_name FROM posts p
             JOIN users u ON p.user_id = u.user_id

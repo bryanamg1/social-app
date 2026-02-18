@@ -11,7 +11,6 @@ export const profile = async (req,res)=>{
     try {
         const db = getDB();
     const userId=req.user.user_id;
-        const [users] = await db.query("SELECT * FROM users WHERE user_id = ?",[userId]);
 
     if (!userId) {
       return next(
@@ -58,7 +57,7 @@ export const profile = async (req,res)=>{
       })
     );
   }
-};;
+};
 
 export const register = async (req,res,next)=>{
     try {

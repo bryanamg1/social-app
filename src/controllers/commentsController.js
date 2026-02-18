@@ -1,7 +1,10 @@
+
+import { application } from "express";
 import {getDB} from "../config/db.js";
 import { insertComment, readComments } from "../service/commentService.js";
+import { AppError } from "../utils/utils.js";
 
-export const addComment = async (req, res) =>{
+export const addComment = async (req, res, next) =>{
     try {
         const db = await getDB();
         const commentData = req.body;
@@ -9,30 +12,60 @@ export const addComment = async (req, res) =>{
         const postId = parseInt(req.params.postId, 10);
 
         if (isNaN(userId)) {
-     return res.status(400).json({ error: "Invalid or missing user ID" });
+        return next(
+            new AppError({
+                code: "USER_ID_INVALID",
+                message: "Invalid or missing user ID",
+                status: 400
+            })
+        )
     }
 
     if (isNaN(postId)) {
-     return res.status(400).json({ error: "Invalid or missing user ID" });
+     return next(
+        new AppError({
+            code: "POST_ID_INVALID",
+            message: "Invalid or missing post ID",
+            status: 400
+        })
+     )
     }
 
     if (!commentData || Object.keys(commentData).length === 0) {
-      return res.status(400).json({ error: "No comment data provided" });
+      return next(
+        new AppError({
+            code: "COMMENT_DATA_EMPTY",
+            message: "No comment data provided",
+            status: 400
+        })
+      )
     }
 
     let {parent_comment_id, comment_text} = commentData
 
     if (!comment_text || comment_text.trim() === "") {
-    return res.status(400).json({ error: "Comment text is required" });
+        return next(
+            new AppError({
+                code: "COMMENT_CONTENT_REQUIRED",
+                message: "Comment text is required",
+                status: 400
+            })
+        )
     } 
-
+ 
     if(!parent_comment_id || parent_comment_id === ""){
         parent_comment_id = null
     }else{
         parent_comment_id = parseInt(parent_comment_id, 10)
 
         if(isNaN(parent_comment_id)){
-            return res.status(400).json({error:"Invalid parent_comment_id"})
+            return next(
+                new AppError({
+                    code: "COMMENT_ID_INVALID",
+                    message: "Invalid parent_comment_id",
+                    status:400
+                })
+            )
         }
     }
 
@@ -46,16 +79,29 @@ export const addComment = async (req, res) =>{
 
     }
     catch (error) {
-        res.status(500).json({ error: "Error inserting comment" });
+        return next(
+            new AppError({
+                code: "ADD_COMMENT_FAILED",
+                message: "Error inserting comment",
+                status: 500,
+                details: error?.code || error?.message || null,
+            })
+        )
     }
 }
 
-export const commentsByPost = async (req, res) =>{
+export const commentsByPost = async (req, res, next) =>{
     try {
         const postId = parseInt(req.params.postId, 10)
 
         if (isNaN(postId)) {
-     return res.status(400).json({ error: "Invalid or missing user ID" });
+            return next(
+                new AppError({
+                    code: "POST_ID_INVALID",
+                    message: "Invalid or missing user ID",
+                    status: 400
+                })
+            )
     }
 
     const result = await readComments(db, postId)
@@ -66,6 +112,13 @@ export const commentsByPost = async (req, res) =>{
     });
 
     } catch (error) {
-        res.status(500).json({ error: "Error reading comment" });
+        return next(
+            new AppError({
+                code: "GET_COMMENTS_FAILED",
+                message: "Error reading comments",
+                status: 500,
+                details: error?.code || error?.message || null,
+            })
+        )
     }
 }

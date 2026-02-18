@@ -1,10 +1,12 @@
+
 import { application } from "express";
-import db from "../config/db.js";
+import {getDB} from "../config/db.js";
 import { insertComment, readComments } from "../service/commentService.js";
 import { AppError } from "../utils/utils.js";
 
 export const addComment = async (req, res, next) =>{
     try {
+        const db = await getDB();
         const commentData = req.body;
         const userId = parseInt(req.params.id, 10);
         const postId = parseInt(req.params.postId, 10);

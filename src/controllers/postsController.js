@@ -1,10 +1,12 @@
-import db from "../config/db.js";
-import { insertPost, getPosts,deletePost, getPostById } from "../service/postsService.js";
+import {getDB} from "../config/db.js";
+import { insertPost, getPosts,deletePost, getPostById, countposts } from "../service/postsService.js";
 import { AppError } from "../utils/utils.js";
 import { getCache, setCache, invalidateCache } from "../cache/cacheHelpers.js";
+import { pagination } from "../utils/pagination.js";
 
 export const addpost = async (req, res, next) => {
     try {
+      const db = await getDB();
      const postData = req.body;
      const userId = parseInt(req.params.id, 10);
 
@@ -78,20 +80,13 @@ export const addpost = async (req, res, next) => {
     }
 };
 
-export const allpost = async (req, res, next) => {
-  try {
-    const page = Math.max(parseInt(req.query.page) || 1, 1);
-    const limit = Math.max(parseInt(req.query.limit) || 10, 1);
-    const offset = (page - 1) * limit;
+export const allpost = async (req, res, next) =>{
+try {
+  const db = await getDB();
+const { page, limit, offset } = pagination(req);
 
-    const cacheKey = `posts:list:page=${page}&limit=${limit}`;
-
-    const cached = await getCache(cacheKey);
-    if (cached) {
-      return res.status(200).json(cached);
-    }
-
-    const result = await getPosts(db, limit, offset);
+  const result = await getPosts(db, limit, offset)
+  const total = await countposts(db);
 
     if (!result || result.length === 0) {
       return next(
@@ -104,18 +99,18 @@ export const allpost = async (req, res, next) => {
       );
     }
 
-    const response = {
-      message: "✅ Posts retrieved successfully",
-      posts: result,
-    };
 
-
-    await setCache(cacheKey, 60, response);
-
-    return res.status(200).json(response);
-
-  } catch (error) {
-    console.error("❌ Error retrieving posts:", error);
+    res.status(200).json({
+      data: result,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+} catch (error) {
+     console.error("❌ Error retrieving posts:", error);
 
     return next(
       new AppError({
@@ -130,6 +125,7 @@ export const allpost = async (req, res, next) => {
 
 export const postByUserId = async (req, res, next) => {
   try {
+    const db = await getDB();
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit) || 10, 1);
     const offset = (page - 1) * limit;
@@ -184,6 +180,7 @@ export const postByUserId = async (req, res, next) => {
 
 export const postById = async (req, res, next) => {
   try {
+    const db = await getDB();
     const post_id = parseInt(req.params.id, 10);
 
 
@@ -243,7 +240,8 @@ await setCache(cacheKey, 120, response)
 
 export const deletePostById = async (req, res, next) => {
   try {
-    const postId = parseInt(req.params.id, 10);
+    const db = await getDB();
+    const postId = parseInt(req.params.id, 10)
 
     if (isNaN(postId)) {
       return next(

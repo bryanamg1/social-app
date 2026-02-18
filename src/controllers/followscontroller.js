@@ -1,8 +1,9 @@
-import db from "../config/db.js";
+import {getDB} from "../config/db.js";
 import { AppError } from "../utils/utils.js";
 
 export const followUser = async (req, res, next) =>{
     try{
+        const db = getDB();
         const followerid = req.params.id;
         const followidUser = req.user.user_id;
         if (Number(followidUser) === Number(followerid)) {
@@ -50,10 +51,11 @@ export const followUser = async (req, res, next) =>{
     }
 };
 
-export const unfollowUser = async (req, res, next) => {
-  try {
-    const unfollowerId = parseInt(req.params.id, 10);
-    const currentUserId = req.user?.user_id;
+export const unfollowUser = async (req, res)=>{
+    try{
+        const db = getDB();
+        const unfollowerid = req.params.id;
+        const unfollowidUser = req.user.user_id;
 
     if (!currentUserId) {
       return next(
@@ -133,6 +135,8 @@ export const feedfollowers = async (req,res, next)=>{
             )
         }
 
+        const db = getDB();
+        const userId = req.user.user_id;
         const [feed] = await db.query(
             `SELECT p.post_id, p.content, p.image_url, p.created_at, u.user_id, u.user_name FROM posts p
             JOIN users u ON p.user_id = u.user_id

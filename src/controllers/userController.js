@@ -1,14 +1,17 @@
-import db from "../config/db.js"
+import {getDB} from "../config/db.js"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { searchUser } from "../service/usersService.js";
 import { AppError } from "../utils/utils.js";
+import dotenv from "dotenv";    
+dotenv.config();
+const SECRET_KEY = process.env.JWT_SECRET;
 
-const SECRET_KEY = process.env.SECRET_KEY || "2025jwtdev";
-
-export const profile = async (req, res, next) => {
-  try {
-    const userId = req.user?.user_id;
+export const profile = async (req,res)=>{
+    try {
+        const db = getDB();
+    const userId=req.user.user_id;
+        const [users] = await db.query("SELECT * FROM users WHERE user_id = ?",[userId]);
 
     if (!userId) {
       return next(
@@ -59,6 +62,7 @@ export const profile = async (req, res, next) => {
 
 export const register = async (req,res,next)=>{
     try {
+        const db = getDB();
         const {user_name,email,password}= req.body;
         const [existinguser]= await db.query("SELECT * FROM users WHERE email = ?",[email]);
         const [duplicatename]= await db.query("SELECT * FROM users WHERE user_name = ?",[user_name]);
@@ -110,6 +114,7 @@ export const register = async (req,res,next)=>{
 
 export const login= async (req,res,next)=>{
     try{
+        const db = getDB();
         const {email,password}=req.body;
         if (!email || !password) {
             return next(
@@ -164,6 +169,7 @@ catch (error) {
 
 export const updateProfile = async (req,res,next) =>{
     try{
+        const db = getDB();
         const userId = req.user.user_id;
         const {user_name,bio,location}= req.body;
 
@@ -270,6 +276,7 @@ if (!image_url) {
 
 export const searchUserController = async (req, res,next) => {
     try {
+        const db = getDB();
         const { query } = req.query; // EXTRAES el valor correcto
 
         if (!query || query.trim() === "") {

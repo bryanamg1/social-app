@@ -198,6 +198,13 @@ export const postById = async (req, res, next) => {
       );
     }
 
+    const cacheKey = `post:detail:${post_id}`;
+
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
     const result = await getPostById(db, post_id);
 
     if (!result) {
@@ -211,10 +218,15 @@ export const postById = async (req, res, next) => {
   );
 }
 
-    return res.status(200).json({
+const response = {
       message: "✅ Post retrieved successfully",
       post: result,
-    });
+}
+
+await setCache(cacheKey, 120, response)
+
+    return res.status(200).json(response);
+
   } catch (error) {
     console.error("❌ Error retrieving posts:", error);
 
@@ -258,7 +270,7 @@ export const deletePostById = async (req, res, next) => {
     }
 
     await invalidateCache("posts:list:*");
-    await invalidateCache("post:detail:*");
+    await invalidateCache(`post:detail:${postId}`);
 
     return res.status(200).json({
       message: "✅ Post deleted successfully",

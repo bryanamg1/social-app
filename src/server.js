@@ -4,10 +4,15 @@ import app from "./app.js";
 import { registerMessagesSocket } from "./sockets/message.socket.js";
 import { notificationSocket  } from "./sockets/notificationSocket.js";
 import {setIO} from "./sockets/sockets.js";
+import { connectDB } from "./config/db.js";
 
 const PORT = process.env.PORT || 8080;
 
 const server = http.createServer(app);
+
+if (process.env.NODE_ENV !== "test") {
+  await connectDB();
+}
 
 const io = new Server(server, {
   cors: {

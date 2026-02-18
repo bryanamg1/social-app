@@ -1,8 +1,10 @@
-import db from "../config/db.js";
+import {getDB} from "../config/db.js";
 import { insertMessage } from "../service/messageService.js";
 import { userBelongsToConversation } from "../service/conversationsService.js";
 
+
 export const registerMessagesSocket = (io) => {
+  const db = getDB();
   const nsp = io.of("/messages");
 
   nsp.on("connection", (socket) => {

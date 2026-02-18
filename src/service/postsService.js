@@ -1,5 +1,7 @@
+import {getDB} from "../config/db.js";
 export const insertPost = async(db, postData, userId, image_url) =>{
     try {
+      const db = getDB();
         const inserPostQuery = 
         `INSERT INTO posts (user_id, content, image_url)
         VALUES (?, ?, ?)
@@ -19,6 +21,7 @@ export const insertPost = async(db, postData, userId, image_url) =>{
 
 export const getPosts = async (db, limit, offset, userId = null)=>{
     try {
+      const db = getDB();
         let query = `
       SELECT p.*, u.user_name 
       FROM posts p
@@ -46,6 +49,7 @@ export const getPosts = async (db, limit, offset, userId = null)=>{
 
 export const getPostById = async (db, post_id) => {
   try {
+    const db = getDB();
     const query = `
       SELECT p.*, u.user_name 
       FROM posts p
@@ -64,6 +68,7 @@ export const getPostById = async (db, post_id) => {
 
 export const deletePost = async (db, postId)=>{
     try {
+      const db = getDB();
         const deletePostQuery = `
         delete from posts
         where post_id = ?`;
@@ -78,4 +83,23 @@ export const deletePost = async (db, postId)=>{
         console.error("❌ Error deleting post:", error)
     throw error;
     }
+}
+
+export const countposts = async (db, userId = null) =>{
+  try {
+    const db = getDB();
+    let count = `SELECT COUNT(*) AS total FROM posts`;
+    const params = [];
+    if (userId) {
+      count += ` WHERE user_id = ?`;
+      params.push(userId);
+    }
+    const [rows] = await db.query(count, params);
+    return rows[0].total;
+    
+  } catch (error) {
+    console.error("❌ Error counting posts:", error);
+    throw error;
+    
+  }
 }

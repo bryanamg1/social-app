@@ -5,6 +5,7 @@ import { pagination } from "../utils/pagination.js";
 
 export const addpost = async (req, res, next) => {
     try {
+      const db = await getDB();
      const postData = req.body;
      const userId = parseInt(req.params.id, 10);
 
@@ -76,6 +77,7 @@ export const addpost = async (req, res, next) => {
 
 export const allpost = async (req, res, next) =>{
 try {
+  const db = await getDB();
 const { page, limit, offset } = pagination(req);
 
   const result = await getPosts(db, limit, offset)
@@ -118,6 +120,7 @@ const { page, limit, offset } = pagination(req);
 
 export const postByUserId = async (req, res, next) => {
   try {
+    const db = await getDB();
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit) || 10, 1);
     const offset = (page - 1) * limit;
@@ -172,6 +175,7 @@ export const postByUserId = async (req, res, next) => {
 
 export const postById = async (req, res, next) => {
   try {
+    const db = await getDB();
     const post_id = parseInt(req.params.id, 10);
 
 
@@ -219,6 +223,7 @@ export const postById = async (req, res, next) => {
 
 export const deletePostById = async (req, res, next) =>{
   try {
+    const db = await getDB();
     const postId = parseInt(req.params.id, 10)
 
     if (isNaN(userId)) {

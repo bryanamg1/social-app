@@ -1,7 +1,7 @@
 import {getDB} from "../config/db.js";
 import { AppError } from "../utils/utils.js";
 
-export const followUser = async (req, res) =>{
+export const followUser = async (req, res, next) =>{
     try{
         const db = getDB();
         const followerid = req.params.id;

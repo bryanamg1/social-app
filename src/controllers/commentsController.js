@@ -3,6 +3,7 @@ import { insertComment, readComments } from "../service/commentService.js";
 
 export const addComment = async (req, res) =>{
     try {
+        const db = await getDB();
         const commentData = req.body;
         const userId = parseInt(req.params.id, 10);
         const postId = parseInt(req.params.postId, 10);

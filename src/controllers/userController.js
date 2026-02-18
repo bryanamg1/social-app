@@ -11,19 +11,52 @@ export const profile = async (req,res)=>{
     try {
         const db = getDB();
     const userId=req.user.user_id;
-        const [users] = await db.query("SELECT * FROM users WHERE user_id = ?",[userId]);
 
-        if (users.length === 0) {
-            return res.status(404).json({ msg: "Usuario no encontrado" });
+    if (!userId) {
+      return next(
+        new AppError({
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
+        })
+      );
     }
-    const {user_id,user_name,email,created_at} = users[0]
-        res.status(200).json({msg:"perfil usuario",data:{user_id,user_name,email,created_at}});
 
-        console.log("ID del usuario autenticado:", userId)
-    } catch (error) {
-        res.status(500).json({msg:"error del servidor"})
-        console.error(error);   
+    const [users] = await db.query(
+      "SELECT user_id, user_name, email, created_at FROM users WHERE user_id = ?",
+      [userId]
+    );
+
+    if (!users || users.length === 0) {
+      return next(
+        new AppError({
+          code: "USER_NOT_FOUND",
+          message: "Usuario no encontrado",
+          status: 404,
+          details: { userId },
+        })
+      );
     }
+
+    const { user_id, user_name, email, created_at } = users[0];
+
+    return res.status(200).json({
+      ok: true,
+      message: "Perfil de usuario",
+      data: { user_id, user_name, email, created_at },
+    });
+  } catch (error) {
+    console.error("profile error:", error);
+
+    return next(
+      new AppError({
+        code: "USER_PROFILE_FAILED",
+        message: "Error del servidor",
+        status: 500,
+        details: error?.code || error?.message || null,
+      })
+    );
+  }
 };
 
 export const register = async (req,res,next)=>{

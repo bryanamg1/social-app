@@ -3,6 +3,7 @@ import {AppError} from "../utils/utils.js"
 
 export const toggleReactionPost = async (req, res, next) => {
   try {
+    const db = await getDB();
     const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
     const userId = Number(req.params.userId);
     const postId = Number(req.params.postId);
@@ -132,6 +133,7 @@ export const toggleReactionPost = async (req, res, next) => {
 
 export const getReactionsByPost = async (req, res, next) => {
   try {
+    const db = await getDB();
     const postId = parseInt(req.params.postId, 10);
 
     if (Number.isNaN(postId)) {
@@ -151,14 +153,13 @@ export const getReactionsByPost = async (req, res, next) => {
     );
 
     if (!results || results.length === 0) {
-      return next(
-        new AppError({
-          code: "POST_REACTIONS_NOT_FOUND",
-          message: "No se encontraron reacciones para el post ID",
-          status: 404,
-          details: { postId },
-        })
-      );
+      return res.status(204).json({
+        ok: true,
+        message: "no hay reacciones para este post",
+        data:{
+          postId
+        }
+      })
     }
 
     return res.status(200).json({
@@ -185,6 +186,7 @@ export const getReactionsByPost = async (req, res, next) => {
 
 export const toggleReactionComment = async (req, res, next) => {
   try {
+    const db = await getDB();
     const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
     const userId = parseInt(req.params.userId, 10);
     const commentId = parseInt(req.params.commentId, 10);
@@ -314,6 +316,7 @@ export const toggleReactionComment = async (req, res, next) => {
 
 export const getReactionsByComment = async (req, res, next) => {
   try {
+    const db = await getDB();
     const commentId = parseInt(req.params.commentId, 10);
 
     if (Number.isNaN(commentId)) {
@@ -333,14 +336,13 @@ export const getReactionsByComment = async (req, res, next) => {
     );
 
     if (!results || results.length === 0) {
-      return next(
-        new AppError({
-          code: "COMMENT_REACTIONS_NOT_FOUND",
-          message: "No se encontraron reacciones para el comment ID",
-          status: 404,
-          details: { commentId },
-        })
-      );
+      return res.status(204).json({
+        ok: true,
+        message: "no hay reacciones para este comentario",
+        data: {
+          commentId
+        }
+      })
     }
 
     return res.status(200).json({
@@ -367,6 +369,7 @@ export const getReactionsByComment = async (req, res, next) => {
 
 export const getMyReactionByPost = async (req, res, next) => {
   try {
+    const db = await getDB();
     const userId = parseInt(req.params.uid, 10);
     const postId = parseInt(req.params.pid, 10);
 
@@ -399,7 +402,7 @@ export const getMyReactionByPost = async (req, res, next) => {
 
     // 🟡 No existe reacción
     if (rows.length === 0) {
-      return res.status(200).json({
+      return res.status(204).json({
         ok: true,
         message: "El usuario no ha reaccionado a este post",
         data: {
@@ -439,6 +442,7 @@ export const getMyReactionByPost = async (req, res, next) => {
 
 export const getMyReactionByComment = async (req, res, next) => {
   try {
+    const db = await getDB();
     const userId = parseInt(req.params.uid, 10);
     const commentId = parseInt(req.params.cid, 10);
 
@@ -471,7 +475,7 @@ export const getMyReactionByComment = async (req, res, next) => {
 
     // 🟡 No existe reacción
     if (rows.length === 0) {
-      return res.status(200).json({
+      return res.status(204).json({
         ok: true,
         message: "El usuario no ha reaccionado a este comentario",
         data: {

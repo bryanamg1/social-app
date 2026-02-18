@@ -5,6 +5,7 @@ import { AppError } from "../utils/utils.js";
 
 export const createOrGetConversations = async (req, res, next) => {
   try {
+    const db = await getDB();
     const { user_id, other_user_id } = req.body;
 
     const userId = parseInt(user_id, 10);
@@ -60,6 +61,7 @@ export const createOrGetConversations = async (req, res, next) => {
 
 export const getMyConversations = async (req, res, next) => {
   try {
+    const db = await getDB();
     // ✅ unificamos: user_id
     const userId = parseInt(req.query.uid, 10);
 
@@ -101,6 +103,7 @@ export const getMyConversations = async (req, res, next) => {
 
 export const getConversationsMessages = async (req, res, next) => {
   try {
+    const db = await getDB();
     const conversationId = parseInt(req.params.id, 10);
     const userId = parseInt(req.query.uid, 10);
 
@@ -173,6 +176,7 @@ export const getConversationsMessages = async (req, res, next) => {
 
 export const sendMessageRest = async (req, res, next) => {
   try {
+    const db = await getDB();
     const { senderId, conversationId, content } = req.body;
 
     const sender_id = parseInt(senderId, 10);

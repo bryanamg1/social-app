@@ -1,7 +1,7 @@
 import {getDB} from "../config/db.js";
 import { AppError } from "../utils/utils.js";
 
-export const followUser = async (req, res) =>{
+export const followUser = async (req, res, next) =>{
     try{
         const db = getDB();
         const followerid = req.params.id;
@@ -57,29 +57,85 @@ export const unfollowUser = async (req, res)=>{
         const unfollowerid = req.params.id;
         const unfollowidUser = req.user.user_id;
 
-        const [userExists] = await db.query("SELECT * FROM users WHERE user_id = ?",
-            [unfollowerid]);
-
-        if (userExists.length === 0) {
-            return res.status(404).json({msg:"Este usuario no existe"});
-        }
-
-        await db.query ("DELETE FROM follows WHERE follower_id = ? AND followed_id = ?",
-            [unfollowidUser, unfollowerid]
-        );
-        res.status(200).json({msg:"Has dejado de seguir al usuario"});
-    }catch(error){
-        res.status(500).json({msg:"Error al dejar de seguir"});
-        console.error(error);
-        
+    if (!currentUserId) {
+      return next(
+        new AppError({
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
+        })
+      );
     }
 
+    if (Number.isNaN(unfollowerId)) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
+          status: 400,
+          details: { param: req.params.id },
+        })
+      );
+    }
+
+    const [userExists] = await db.query(
+      "SELECT user_id FROM users WHERE user_id = ?",
+      [unfollowerId]
+    );
+
+    if (!userExists || userExists.length === 0) {
+      return next(
+        new AppError({
+          code: "USER_NOT_FOUND",
+          message: "Este usuario no existe",
+          status: 404,
+          details: { userId: unfollowerId },
+        })
+      );
+    }
+
+    await db.query(
+      "DELETE FROM follows WHERE follower_id = ? AND followed_id = ?",
+      [currentUserId, unfollowerId]
+    );
+
+    return res.status(200).json({
+      ok: true,
+      message: "Has dejado de seguir al usuario",
+      data: {
+        follower_id: currentUserId,
+        unfollowed_id: unfollowerId,
+      },
+    });
+  } catch (error) {
+    console.error("unfollowUser error:", error);
+
+    return next(
+      new AppError({
+        code: "UNFOLLOW_USER_FAILED",
+        message: "Error al dejar de seguir",
+        status: 500,
+        details: error?.code || error?.message || null,
+      })
+    );
+  }
 };
 
-export const feedfollowers = async (req,res)=>{
+export const feedfollowers = async (req,res, next)=>{
     try {
+        const userId = parseInt(req.user.user_id, 10)
+
+        if(isNaN(userId)){
+            return next(
+                new AppError({
+                    code: "USER_ID_INVALID",
+                    message: "Invalid or missing user ID",
+                    status: 400,
+                })
+            )
+        }
+
         const db = getDB();
-        const userId = req.user.user_id;
         const [feed] = await db.query(
             `SELECT p.post_id, p.content, p.image_url, p.created_at, u.user_id, u.user_name FROM posts p
             JOIN users u ON p.user_id = u.user_id
@@ -87,11 +143,24 @@ export const feedfollowers = async (req,res)=>{
             [userId]
         );
         if (feed.length === 0) {
-            return res.status(404).json({msg:"este usuario no tiene posts"})
+            return next(
+                new AppError({
+                    code: "NOT_FOUND_POST",
+                    message: "este usuari no tiene post",
+                    status: 400
+                })
+            )
         }
         res.status(200).json({msg:"feed de los usuarios que sigues",data:feed});
     } catch (error) {
-        res.status(500).json({msg:"error al obtener feed de seguidores"})
+        return next(
+            new AppError({
+                code: "FEED_USER_FAILED",
+                message: "error al buscar el feed el usuario",
+                status: 500,
+                details: error?.code || error?.message || null,
+            })
+        )
 
     }
 }

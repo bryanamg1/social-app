@@ -1,10 +1,12 @@
 import {getDB} from "../config/db.js";
 import { insertPost, getPosts,deletePost, getPostById, countposts } from "../service/postsService.js";
 import { AppError } from "../utils/utils.js";
+import { getCache, setCache, invalidateCache } from "../cache/cacheHelpers.js";
 import { pagination } from "../utils/pagination.js";
 
 export const addpost = async (req, res, next) => {
     try {
+      const db = await getDB();
      const postData = req.body;
      const userId = parseInt(req.params.id, 10);
 
@@ -54,6 +56,10 @@ export const addpost = async (req, res, next) => {
 // insert
     const result = await insertPost(db, postData, userId, image_url);
 
+    await invalidateCache("posts:list:*");
+
+    await invalidateCache("post:detail:*");
+
     res.status(201).json({
       message: "✅ Post added successfully",
       postId: result.insertId,
@@ -76,12 +82,13 @@ export const addpost = async (req, res, next) => {
 
 export const allpost = async (req, res, next) =>{
 try {
+  const db = await getDB();
 const { page, limit, offset } = pagination(req);
 
   const result = await getPosts(db, limit, offset)
   const total = await countposts(db);
 
-  if (!result || result.length === 0) {
+    if (!result || result.length === 0) {
       return next(
         new AppError({
           code: "POSTS_NOT_FOUND",
@@ -113,11 +120,12 @@ const { page, limit, offset } = pagination(req);
         details: error?.code || null,
       })
     );
-}
+  }
 };
 
 export const postByUserId = async (req, res, next) => {
   try {
+    const db = await getDB();
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit) || 10, 1);
     const offset = (page - 1) * limit;
@@ -172,6 +180,7 @@ export const postByUserId = async (req, res, next) => {
 
 export const postById = async (req, res, next) => {
   try {
+    const db = await getDB();
     const post_id = parseInt(req.params.id, 10);
 
 
@@ -184,6 +193,13 @@ export const postById = async (req, res, next) => {
           details: { param: req.params.id },
         })
       );
+    }
+
+    const cacheKey = `post:detail:${post_id}`;
+
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
     }
 
     const result = await getPostById(db, post_id);
@@ -199,10 +215,15 @@ export const postById = async (req, res, next) => {
   );
 }
 
-    return res.status(200).json({
+const response = {
       message: "✅ Post retrieved successfully",
       post: result,
-    });
+}
+
+await setCache(cacheKey, 120, response)
+
+    return res.status(200).json(response);
+
   } catch (error) {
     console.error("❌ Error retrieving posts:", error);
 
@@ -217,50 +238,54 @@ export const postById = async (req, res, next) => {
   }
 };
 
-export const deletePostById = async (req, res, next) =>{
+export const deletePostById = async (req, res, next) => {
   try {
+    const db = await getDB();
     const postId = parseInt(req.params.id, 10)
 
-    if (isNaN(userId)) {
+    if (isNaN(postId)) {
       return next(
         new AppError({
-          code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
+          code: "POST_ID_INVALID",
+          message: "Invalid or missing post ID",
           status: 400,
           details: { param: req.params.id },
         })
       );
     }
 
-    const result = await deletePost(db, postId)
+    const result = await deletePost(db, postId);
 
     if (result.affectedRows === 0) {
-  return next(
-    new AppError({
-      code: "POST_NOT_FOUND",
-      message: "❌ Post not found",
-      status: 404,
-      details: { affectedRows: result.affectedRows },
-    })
-  );
-}
+      return next(
+        new AppError({
+          code: "POST_NOT_FOUND",
+          message: "❌ Post not found",
+          status: 404,
+          details: { postId },
+        })
+      );
+    }
 
-    res.status(200).json({
+    await invalidateCache("posts:list:*");
+    await invalidateCache(`post:detail:${postId}`);
+
+    return res.status(200).json({
       message: "✅ Post deleted successfully",
       affectedRows: result.affectedRows,
     });
 
   } catch (error) {
-    console.error("❌ Error retrieving posts:", error);
+    console.error("❌ Error deleting post:", error);
 
     return next(
       new AppError({
-        code: "POSTS_LIST_FAILED",
-        message: "Error retrieving posts",
+        code: "POST_DELETE_FAILED",
+        message: "Error deleting post",
         status: 500,
         details: error?.code || null,
       })
     );
   }
-}
+};
 

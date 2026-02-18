@@ -1,10 +1,12 @@
-/* import tester from 'supertest';
-import app from '../src/app.js';
 import {closeDB, connectDB} from '../src/config/db.js';
 
 beforeAll(async () => {
+     process.env.NODE_ENV = "test";
     await connectDB();
 })
+import tester from 'supertest';
+import app from '../src/app.js';
+
 
 afterAll( async () => {
     await closeDB();
@@ -20,6 +22,4 @@ describe("Pagination Tests", () => {
         expect(res.body.meta).toHaveProperty('limit', 5);
         expect(res.body.meta).toHaveProperty('total');
     });
-}); */
-
-// TEST DE PAGINACION EN PROCESO 
+});

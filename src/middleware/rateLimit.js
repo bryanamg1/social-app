@@ -28,7 +28,7 @@ function buildRateLimit({windowMs, max, code, message}){
     })
 }
 
-const GLOBAL_WINDOW_MS = toInt(process.env.RATE_LIMIT_GLOBAL_WINOW_MS, 60000);
+const GLOBAL_WINDOW_MS = toInt(process.env.RATE_LIMIT_GLOBAL_WINDOW_MS, 60000);
 const GLOBAL_MAX = toInt(process.env.RATE_LIMIT_GLOBAL_MAX, 120)
 const AUTH_WINDOW_MS = toInt(process.env.RATE_LIMIT_AUTH_WINDOW_MS, 10 * 60_000);
 const AUTH_MAX = toInt(process.env.RATE_LIMIT_AUTH_MAX, 10);

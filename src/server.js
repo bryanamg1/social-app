@@ -14,11 +14,16 @@ const server = http.createServer(app);
 if (process.env.NODE_ENV !== "test") {
   await connectDB();
 }
+const allowedOrigins =
+  process.env.NODE_ENV === "production"
+    ? ["https://tufrontend.com"]
+    : ["http://localhost:5173", "http://localhost:3000"];
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 setIO(io);

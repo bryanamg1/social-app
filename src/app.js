@@ -42,7 +42,7 @@ app.use(
 
 const allowedOrigins =
   process.env.NODE_ENV === "production"
-    ? ["https://tufrontend.com"] // cambia esto en prod
+    ? ["https://social-app-green-seven.vercel.app"]
     : ["http://localhost:5173", "http://localhost:3000"];
 
 app.use(

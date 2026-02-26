@@ -42,7 +42,7 @@ app.use(
 
 const allowedOrigins =
   process.env.NODE_ENV === "production"
-    ? ["https://social-app-green-seven.vercel.app"]
+    ? [process.env.FRONTEND_URL]
     : ["http://localhost:5173", "http://localhost:3000"];
 
 app.use(

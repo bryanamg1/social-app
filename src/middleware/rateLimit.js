@@ -117,6 +117,17 @@ export const rateLimitAuthByUser = DEV_BYPASS
         }
     });
 
+export const rateLimitAuthByUser = DEV_BYPASS
+    ? (req, res, next) => next()
+    : buildRateLimit({
+        windowMs: AUTH_WINDOW_MS,
+        max: AUTH_MAX,
+        code: "AUTH_RATE_LIMIT_USER_EXCEEDED",
+        message: "haz superado el limite de intentos",
+        keyGenerator: (req) => req.user ? `user_${req.user.id}` : req.ip
+    });
+
+
 
 export const rateLimitLogin = DEV_BYPASS
     ? (req, res, next) => next()

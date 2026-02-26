@@ -4,6 +4,8 @@ import jwt from "jsonwebtoken"
 import { searchUser } from "../service/usersService.js";
 import { AppError } from "../utils/utils.js";
 import dotenv from "dotenv";    
+import {logger} from "../config/logger.js";
+
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET;
 
@@ -13,50 +15,50 @@ export const profile = async (req,res)=>{
     const userId=req.user.user_id;
 
     if (!userId) {
-      return next(
+        return next(
         new AppError({
-          code: "UNAUTHORIZED",
-          message: "Usuario no autenticado",
-          status: 401,
-        })
-      );
+            code: "UNAUTHORIZED",
+            message: "Usuario no autenticado",
+            status: 401,
+            })
+        );
     }
 
     const [users] = await db.query(
-      "SELECT user_id, user_name, email, created_at FROM users WHERE user_id = ?",
-      [userId]
+        "SELECT user_id, user_name, email, created_at FROM users WHERE user_id = ?",
+        [userId]
     );
 
     if (!users || users.length === 0) {
-      return next(
-        new AppError({
-          code: "USER_NOT_FOUND",
-          message: "Usuario no encontrado",
-          status: 404,
-          details: { userId },
-        })
-      );
+        return next(
+            new AppError({
+                code: "USER_NOT_FOUND",
+                message: "Usuario no encontrado",
+                status: 404,
+                details: { userId },
+            })
+        );
     }
 
     const { user_id, user_name, email, created_at } = users[0];
 
     return res.status(200).json({
-      ok: true,
-      message: "Perfil de usuario",
-      data: { user_id, user_name, email, created_at },
-    });
-  } catch (error) {
+        ok: true,
+        message: "Perfil de usuario",
+        data: { user_id, user_name, email, created_at },
+        });
+    } catch (error) {
     console.error("profile error:", error);
 
     return next(
-      new AppError({
-        code: "USER_PROFILE_FAILED",
-        message: "Error del servidor",
-        status: 500,
-        details: error?.code || error?.message || null,
-      })
-    );
-  }
+        new AppError({
+            code: "USER_PROFILE_FAILED",
+            message: "Error del servidor",
+            status: 500,
+            details: error?.code || error?.message || null,
+            })
+        );
+    }
 };
 
 export const register = async (req,res,next)=>{
@@ -115,7 +117,10 @@ export const login= async (req,res,next)=>{
     try{
         const db = getDB();
         const {email,password}=req.body;
+        logger.info("Login attempt", {requestId: req.requestId,ip: req.ip});
+
         if (!email || !password) {
+            logger.warn(`login failed - missing data`,{email});
             return next(
         new AppError({
         code: "LOGIN_DATA_MISSIN",
@@ -129,10 +134,11 @@ export const login= async (req,res,next)=>{
         const [rows] = await db.query("SELECT * FROM users WHERE email = ?",[email]);
         
         if(rows.length === 0 || !rows){
+            logger.warn(`login failed - user not found`,{email});
             return next(
         new AppError({
         code: "USER_NOT_FOUND",
-        message: "email no registrado",
+        message: "datos incorrectos",
         status: 404,
     })
 );
@@ -141,19 +147,23 @@ export const login= async (req,res,next)=>{
 
         const ismacht = await bcrypt.compare(password,users.password);
         if(!ismacht){
+            logger.warn(`login failed - user not found`,{email});
             return next(
         new AppError({
         code: "INVALID_PASSWORD",
-        message: "contraseña incorrecta",
+        message: "datos incorrectos",
         status: 401,
     })
 );
         }
         const token = jwt.sign({ user: { user_id: users.user_id, name: users.user_name, email: users.email }}
         ,SECRET_KEY,{ expiresIn: "1h" });
+        logger.info(`login successful`,{email});
             return res.status(200).json({msg:"login exitoso",token});
     }
 catch (error) {
+    logger.error("login error", {email,error: error?.message || error?.code || null,tack: error?.stack || null,
+    });
         return next(
     new AppError({
     code: "LOGIN_FAILED",

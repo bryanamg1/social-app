@@ -13,7 +13,9 @@ import notificationrouter from "./router/notificationRouter.js";
 import conversationsRouter from "./router/conversationsRouter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimitGlobal } from "./middleware/rateLimit.js";
+import { requestIdMiddleware } from "./middleware/requestId.js";
 import helmet from "helmet";
+
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,7 +67,7 @@ app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.get("/", (req, res) => {
 res.send("servidor funcionando");
 });
-
+app.use(requestIdMiddleware);
 app.use("/api", rateLimitGlobal);
 
 // Rutas

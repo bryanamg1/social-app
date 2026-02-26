@@ -13,6 +13,8 @@ import notificationrouter from "./router/notificationRouter.js";
 import conversationsRouter from "./router/conversationsRouter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimitGlobal } from "./middleware/rateLimit.js";
+import helmet from "helmet";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,9 +26,40 @@ const app = express();
 
 
 app.set("trust proxy", 1);
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
-app.use(cors())
+app.disable("x-powered-by")
+
+app.use((req, res, next) => {
+  res.removeHeader("X-Powered-By");
+  next();
+});
+
+app.use(
+    helmet({
+        contentSecurityPolicy: false,
+        crossOriginEmbedderPolicy: false
+    })
+)
+
+const allowedOrigins =
+  process.env.NODE_ENV === "production"
+    ? [process.env.FRONTEND_URL]
+    : ["http://localhost:5173", "http://localhost:3000"];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
 
 app.get("/", (req, res) => {

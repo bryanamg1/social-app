@@ -40,3 +40,33 @@ describe("valid token Tests", () => {
         expect(res.status).toBe(201);
     });
 });
+
+describe("valid token Tests", () => {
+    const token = jwt.sign({ user_id: 4 }, process.env.JWT_SECRET, {expiresIn:"10m"});
+    test("token valido",async () => {
+        const res = await tester(app).post("/api/follows/users/2/unfollow")
+        .set("Authorization", `Bearer ${token}`);
+        expect(res.status).toBe(200);
+    });
+});
+
+
+describe("Rate Limit Login", () => {
+
+    test("should block after max attempts", async () => {
+
+        for (let i = 0; i < 9; i++) {
+            await tester(app)
+                .post("/api/auth/login")
+                .send({ email: "bryan@examplee.com", password: "123456" });
+        }
+
+        const res = await tester(app)
+            .post("/api/auth/login")
+            .send({ email: "bryan@examplee.com", password: "123456" });
+
+        expect(res.status).toBe(429);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.error.code).toBe("LOGIN_RATE_LIMIT_EXCEEDED");
+    });
+});

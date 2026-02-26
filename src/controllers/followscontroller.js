@@ -51,12 +51,14 @@ export const followUser = async (req, res, next) =>{
     }
 };
 
-export const unfollowUser = async (req, res)=>{
-    try{
-        const db = getDB();
-        const unfollowerid = req.params.id;
-        const unfollowidUser = req.user.user_id;
+export const unfollowUser = async (req, res, next) => {
+  try {
+    const db = getDB();
 
+    const currentUserId = req.user?.user_id;
+    const unfollowedId = Number(req.params.id);
+
+    // 🔐 Validar autenticación
     if (!currentUserId) {
       return next(
         new AppError({
@@ -67,20 +69,33 @@ export const unfollowUser = async (req, res)=>{
       );
     }
 
-    if (Number.isNaN(unfollowerId)) {
+    // 🔢 Validar ID
+    if (Number.isNaN(unfollowedId)) {
       return next(
         new AppError({
           code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
+          message: "ID de usuario inválido",
           status: 400,
           details: { param: req.params.id },
         })
       );
     }
 
+    // 🚫 Evitar dejar de seguirse a sí mismo
+    if (currentUserId === unfollowedId) {
+      return next(
+        new AppError({
+          code: "INVALID_OPERATION",
+          message: "No puedes dejar de seguirte a ti mismo",
+          status: 400,
+        })
+      );
+    }
+
+    // 🔍 Verificar que el usuario existe
     const [userExists] = await db.query(
       "SELECT user_id FROM users WHERE user_id = ?",
-      [unfollowerId]
+      [unfollowedId]
     );
 
     if (!userExists || userExists.length === 0) {
@@ -89,24 +104,36 @@ export const unfollowUser = async (req, res)=>{
           code: "USER_NOT_FOUND",
           message: "Este usuario no existe",
           status: 404,
-          details: { userId: unfollowerId },
+          details: { userId: unfollowedId },
         })
       );
     }
 
-    await db.query(
+    // 🗑️ Eliminar relación
+    const [result] = await db.query(
       "DELETE FROM follows WHERE follower_id = ? AND followed_id = ?",
-      [currentUserId, unfollowerId]
+      [currentUserId, unfollowedId]
     );
+
+    if (result.affectedRows === 0) {
+      return next(
+        new AppError({
+          code: "NOT_FOLLOWING",
+          message: "No estás siguiendo a este usuario",
+          status: 400,
+        })
+      );
+    }
 
     return res.status(200).json({
       ok: true,
       message: "Has dejado de seguir al usuario",
       data: {
         follower_id: currentUserId,
-        unfollowed_id: unfollowerId,
+        unfollowed_id: unfollowedId,
       },
     });
+
   } catch (error) {
     console.error("unfollowUser error:", error);
 
@@ -115,7 +142,7 @@ export const unfollowUser = async (req, res)=>{
         code: "UNFOLLOW_USER_FAILED",
         message: "Error al dejar de seguir",
         status: 500,
-        details: error?.code || error?.message || null,
+        details: error?.message || null,
       })
     );
   }

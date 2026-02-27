@@ -14,6 +14,8 @@ import conversationsRouter from "./router/conversationsRouter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimitGlobal } from "./middleware/rateLimit.js";
 import { requestIdMiddleware } from "./middleware/requestId.js";
+import { metrics } from "./Monitoring/metrics.js";
+import monitoringRouter from "./router/monitoringRouters.js";
 import helmet from "helmet";
 
 
@@ -29,6 +31,11 @@ const app = express();
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by")
+
+app.use((req, res, next) => {
+  metrics.totalRequests++;
+  next();
+});
 
 app.use((req, res, next) => {
   res.removeHeader("X-Powered-By");
@@ -88,6 +95,8 @@ app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.get("/", (req, res) => {
 res.send("servidor funcionando");
 });
+
+app.use("/api/monitoring", monitoringRouter);
 app.use(requestIdMiddleware);
 app.use("/api", rateLimitGlobal);
 

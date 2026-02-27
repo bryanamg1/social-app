@@ -55,7 +55,7 @@ describe("Rate Limit Login", () => {
 
     test("should block after max attempts", async () => {
 
-        for (let i = 0; i < 9; i++) {
+        for (let i = 0; i < 11; i++) {
             await tester(app)
                 .post("/api/auth/login")
                 .send({ email: "bryan@examplee.com", password: "123456" });

@@ -5,11 +5,12 @@ import { searchUser } from "../service/usersService.js";
 import { AppError } from "../utils/utils.js";
 import dotenv from "dotenv";    
 import {logger} from "../config/logger.js";
+import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET;
 
-export const profile = async (req,res)=>{
+export const profile = async (req,res, next)=>{
     try {
         const db = getDB();
     const userId=req.user.user_id;
@@ -113,68 +114,107 @@ export const register = async (req,res,next)=>{
 }
 };
 
-export const login= async (req,res,next)=>{
-    try{
-        const db = getDB();
-        const {email,password}=req.body;
-        logger.info("Login attempt", {requestId: req.requestId,ip: req.ip});
+export const login = async (req, res, next) => {
+try {
+    const db = getDB();
+    const { email, password } = req.body;
 
-        if (!email || !password) {
-            logger.warn(`login failed - missing data`,{email});
-            return next(
-        new AppError({
-        code: "LOGIN_DATA_MISSIN",
-        message: "los campos no pueden estar vacios",
-        status: 400,
-    })
-);
-        }
-
-
-        const [rows] = await db.query("SELECT * FROM users WHERE email = ?",[email]);
-        
-        if(rows.length === 0 || !rows){
-            logger.warn(`login failed - user not found`,{email});
-            return next(
-        new AppError({
-        code: "USER_NOT_FOUND",
-        message: "datos incorrectos",
-        status: 404,
-    })
-);
-        }
-        const users = rows[0]
-
-        const ismacht = await bcrypt.compare(password,users.password);
-        if(!ismacht){
-            logger.warn(`login failed - user not found`,{email});
-            return next(
-        new AppError({
-        code: "INVALID_PASSWORD",
-        message: "datos incorrectos",
-        status: 401,
-    })
-);
-        }
-        const token = jwt.sign({ user: { user_id: users.user_id, name: users.user_name, email: users.email }}
-        ,SECRET_KEY,{ expiresIn: "1h" });
-        logger.info(`login successful`,{email});
-            return res.status(200).json({msg:"login exitoso",token});
-    }
-catch (error) {
-    logger.error("login error", {email,error: error?.message || error?.code || null,tack: error?.stack || null,
+    logger.info("Login attempt", {
+        requestId: req.requestId,
+        ip: req.ip,
+        email,
     });
-        return next(
-    new AppError({
-    code: "LOGIN_FAILED",
-    message: "Error al iniciar sesión",
-    status: 500,
-    details: error?.code || error?.message || null,
-    })
-);
-}
 
-}
+    if (!email || !password) {
+        logger.warn("login failed - missing data", { email });
+
+        return next(
+        new AppError({
+            code: "LOGIN_DATA_MISSING",
+            message: "Los campos no pueden estar vacíos",
+            status: 400,
+        })
+        );
+    }
+
+    const [rows] = await db.execute(
+      "SELECT * FROM users WHERE email = ?",
+        [email]
+    );
+
+    if (!rows.length) {
+        logger.warn("login failed - user not found", { email });
+
+        return next(
+        new AppError({
+            code: "USER_NOT_FOUND",
+            message: "Datos incorrectos",
+            status: 401,
+        })
+    );
+    }
+
+    const user = rows[0];
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+        logger.warn("login failed - invalid password", { email });
+
+        return next(
+        new AppError({
+            code: "INVALID_PASSWORD",
+            message: "Datos incorrectos",
+            status: 401,
+        })
+        );
+    }
+
+    // 🔐 ACCESS TOKEN (15 min)
+    const accessToken = generateAccessToken({
+        id: user.user_id,
+        email: user.email,
+        name: user.user_name,
+    });
+
+    // 🔐 REFRESH TOKEN (random)
+    const refreshToken = generateRefreshToken();
+
+    // 🔒 HASH DEL REFRESH
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await db.execute(
+        "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
+        [user.user_id, hashedRefreshToken, expiresAt]
+    );
+
+    logger.info("login successful", { email });
+
+    return res.status(200).json({
+        msg: "Login exitoso",
+        accessToken,
+        refreshToken,
+    });
+} catch (error) {
+    logger.error("login error", {
+        email: req.body?.email,
+        error: error?.message || error?.code || null,
+        stack: error?.stack || null,
+    });
+
+    return next(
+        new AppError({
+        code: "LOGIN_FAILED",
+        message: "Error al iniciar sesión",
+        status: 500,
+        details: error?.code || error?.message || null,
+        })
+    );
+    }
+};
 
 export const updateProfile = async (req,res,next) =>{
     try{

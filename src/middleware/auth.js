@@ -10,7 +10,7 @@ const auth = (req, res, next) => {
     }
     try {
         const verificar = jwt.verify(token, SECRET_KEY);
-        req.user = verificar;
+        req.user = verificar.user || verificar;
         next();
     } catch (err) {
         res.status(401).json({msg:"el token no es valido"});

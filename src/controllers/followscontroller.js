@@ -148,20 +148,19 @@ export const unfollowUser = async (req, res, next) => {
   }
 };
 
-export const feedfollowers = async (req,res, next)=>{
+export const feedfollowers = async (req, res, next) => {
     try {
-        const userId = parseInt(req.user.user_id, 10)
+        // Buscamos en ambas propiedades por si acaso
+        const idRaw = req.user.user_id || req.user.id;
+        const userId = parseInt(idRaw, 10);
 
-        if(isNaN(userId)){
-            return next(
-                new AppError({
-                    code: "USER_ID_INVALID",
-                    message: "Invalid or missing user ID",
-                    status: 400,
-                })
-            )
+        if (isNaN(userId)) {
+            return next(new AppError({
+                code: "USER_ID_INVALID",
+                message: "Invalid or missing user ID",
+                status: 400,
+            }));
         }
-
         const db = getDB();
         const [feed] = await db.query(
             `SELECT p.post_id, p.content, p.image_url, p.created_at, u.user_id, u.user_name FROM posts p

@@ -90,35 +90,37 @@ export const addComment = async (req, res, next) =>{
     }
 }
 
-export const commentsByPost = async (req, res, next) =>{
+export const commentsByPost = async (req, res, next) => {
     try {
-        const postId = parseInt(req.params.postId, 10)
+        const db = await getDB();
 
-        if (isNaN(postId)) {
-            return next(
-                new AppError({
-                    code: "POST_ID_INVALID",
-                    message: "Invalid or missing user ID",
-                    status: 400
-                })
-            )
-    }
+        const postId = parseInt(req.params.postId, 10);
 
-    const result = await readComments(db, postId)
-
-    res.status(200).json({
-      message: "✅ Comments retrieved successfully",
-      comments: result,
-    });
-
-    } catch (error) {
+        if (Number.isNaN(postId)) {
         return next(
             new AppError({
-                code: "GET_COMMENTS_FAILED",
-                message: "Error reading comments",
-                status: 500,
-                details: error?.code || error?.message || null,
+            code: "POST_ID_INVALID",
+            message: "Invalid or missing post ID",
+            status: 400,
             })
-        )
+        );
+        }
+
+        const result = await readComments(db, postId);
+
+        return res.status(200).json({
+        ok: true,
+        message: "✅ Comments retrieved successfully",
+        comments: result,
+        });
+    } catch (error) {
+        return next(
+        new AppError({
+            code: "GET_COMMENTS_FAILED",
+            message: "Error reading comments",
+            status: 500,
+            details: error?.code || error?.message || null,
+        })
+        );
     }
-}
+};

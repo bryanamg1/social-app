@@ -210,7 +210,7 @@ try {
         code: "LOGIN_FAILED",
         message: "Error al iniciar sesión",
         status: 500,
-        details: error?.code || error?.message || null,
+        details: error?.sqlMessage || error?.code || error?.message || null,
         })
     );
     }

@@ -12,9 +12,11 @@ const getDatabaseConfig = () => {
   const host = env.DB_HOST || env.MYSQLHOST;
   const user = env.DB_USER || env.MYSQLUSER;
   const password = env.DB_PASSWORD || env.MYSQLPASSWORD;
+
   const database = isTest
     ? "social_app_test"
     : env.DB_NAME || env.MYSQLDATABASE || env.MYSQL_DATABASE;
+
   const port = parseInt(env.DB_PORT || env.MYSQLPORT || "3306", 10);
 
   if (host && user && database) {
@@ -53,8 +55,7 @@ export const connectDB = async () => {
     const [dbInfo] = await conn.query(`
       SELECT 
         DATABASE() AS database_name,
-        CURRENT_USER() AS current_user,
-        @@hostname AS hostname
+        USER() AS db_user
     `);
 
     console.log(

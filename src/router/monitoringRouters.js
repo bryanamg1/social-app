@@ -1,5 +1,5 @@
 import { Data } from "../controllers/monitoringControllers.js";
-import { metrics } from "../Monitoring/metrics.js";
+import { metrics } from "../monitoring/metrics.js";
 import express from "express";
 const router = express.Router();
 

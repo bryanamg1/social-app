@@ -14,7 +14,7 @@ import conversationsRouter from "./router/conversationsRouter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimitGlobal } from "./middleware/rateLimit.js";
 import { requestIdMiddleware } from "./middleware/requestId.js";
-import { metrics } from "./Monitoring/metrics.js";
+import { metrics } from "./monitoring/metrics.js";
 import monitoringRouter from "./router/monitoringRouters.js";
 import helmet from "helmet";
 

@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken"
 import dotenv from "dotenv"
-const SECRET_KEY = process.env.JWT_SECRET;
 dotenv.config()
+const SECRET_KEY = process.env.JWT_SECRET;
 
 const auth = (req, res, next) => {
     const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -10,7 +10,7 @@ const auth = (req, res, next) => {
     }
     try {
         const verificar = jwt.verify(token, SECRET_KEY);
-        req.user = verificar;
+        req.user = verificar.user || verificar;
         next();
     } catch (err) {
         res.status(401).json({msg:"el token no es valido"});

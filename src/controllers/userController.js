@@ -10,10 +10,10 @@ import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET;
 
-export const profile = async (req,res, next)=>{
+export const profile = async (req,res)=>{
     try {
         const db = getDB();
-    const userId=req.user.user_id;
+    const userId = req.user?.user?.id || req.params.id;
 
     if (!userId) {
         return next(

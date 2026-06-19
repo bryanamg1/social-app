@@ -28,6 +28,8 @@ const defaultAllowedOrigins = [
   "http://localhost:5174",
   "http://127.0.0.1:5173",
   "https://social-app-green-seven.vercel.app",
+  "https://social-app-front-ruby.vercel.app",
+  "https://social-app-front-opfry0fox-bryan-marquez.vercel.app",
   "https://social-app-production-8e89.up.railway.app",
 ];
 
@@ -45,16 +47,21 @@ const allowedOrigins = Array.from(
   new Set([...defaultAllowedOrigins, ...envAllowedOrigins])
 );
 
+const isAllowedVercelPreview = (origin) => {
+  return /^https:\/\/social-app-front-[a-zA-Z0-9-]+\.vercel\.app$/.test(origin);
+};
+
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) {
       return callback(null, true);
     }
 
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin) || isAllowedVercelPreview(origin)) {
       return callback(null, true);
     }
 
+    console.warn(`CORS blocked origin: ${origin}`);
     return callback(null, false);
   },
   credentials: true,
@@ -95,7 +102,10 @@ app.use(
           "http://localhost:5174",
           "http://127.0.0.1:5173",
           "https://social-app-green-seven.vercel.app",
+          "https://social-app-front-ruby.vercel.app",
+          "https://social-app-front-opfry0fox-bryan-marquez.vercel.app",
           "https://social-app-production-8e89.up.railway.app",
+          "https://*.vercel.app",
         ],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: [],

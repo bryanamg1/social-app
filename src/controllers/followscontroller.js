@@ -1,6 +1,65 @@
 import {getDB} from "../config/db.js";
 import { AppError } from "../utils/utils.js";
 
+export const getFollowStatus = async (req, res, next) => {
+  try {
+    const db = getDB();
+    const currentUserId = Number(req.user?.user_id);
+    const targetUserId = Number(req.params.id);
+
+    if (!currentUserId) {
+      return next(
+        new AppError({
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
+        })
+      );
+    }
+
+    if (Number.isNaN(targetUserId)) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "ID de usuario invalido",
+          status: 400,
+          details: { param: req.params.id },
+        })
+      );
+    }
+
+    if (currentUserId === targetUserId) {
+      return res.status(200).json({
+        ok: true,
+        data: {
+          isFollowing: false,
+        },
+      });
+    }
+
+    const [following] = await db.query(
+      "SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = ? LIMIT 1",
+      [currentUserId, targetUserId]
+    );
+
+    return res.status(200).json({
+      ok: true,
+      data: {
+        isFollowing: following.length > 0,
+      },
+    });
+  } catch (error) {
+    return next(
+      new AppError({
+        code: "FOLLOW_STATUS_READ_FAILED",
+        message: "No se pudo consultar el estado de seguimiento",
+        status: 500,
+        details: error?.message || null,
+      })
+    );
+  }
+};
+
 export const followUser = async (req, res, next) =>{
     try{
         const db = getDB();

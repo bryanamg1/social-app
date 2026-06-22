@@ -223,16 +223,7 @@ export const updateProfile = async (req,res,next) =>{
         const {user_name,bio,location}= req.body;
 
         const [existinguser]= await db.query ("SELECT * FROM users WHERE user_id = ?",[userId]);
-        const [duplicatename]= await db.query("SELECT * FROM users WHERE user_name = ?",[user_name]);
-        if(duplicatename.length > 0){
-            return next(
-                new AppError({
-                    code:"USER_NAME_EXIST",
-                    message:"este nombre de usuario ya existe",
-                    status:409
-                })
-            );
-        };
+
         if(existinguser.length === 0){
             return next(
                 new AppError({
@@ -242,13 +233,42 @@ export const updateProfile = async (req,res,next) =>{
                 })
             );
         }
-        await db.query("UPDATE users SET user_name = ?, bio = ?, location = ? WHERE user_id = ?",
-        [user_name,bio,location,userId]);
 
-        const token = jwt.sign({ user: { user_id: userId, name: user_name, email: existinguser[0].email } },
+        const nextUserName = user_name?.trim() || existinguser[0].user_name;
+        const nextBio = bio !== undefined ? bio : existinguser[0].bio;
+        const nextLocation = location !== undefined ? location : existinguser[0].location;
+
+        const [duplicatename]= await db.query(
+            "SELECT * FROM users WHERE user_name = ? AND user_id <> ?",
+            [nextUserName, userId]
+        );
+
+        if(duplicatename.length > 0){
+            return next(
+                new AppError({
+                    code:"USER_NAME_EXIST",
+                    message:"este nombre de usuario ya existe",
+                    status:409
+                })
+            );
+        };
+        await db.query("UPDATE users SET user_name = ?, bio = ?, location = ? WHERE user_id = ?",
+        [nextUserName,nextBio,nextLocation,userId]);
+
+        const token = jwt.sign({ user: { user_id: userId, name: nextUserName, email: existinguser[0].email } },
         SECRET_KEY,{ expiresIn: "1h" });
 
-            return res.status(200).json({msg:"perfil actualizado exitosamente",token, data:{user_name,bio,location}});
+            return res.status(200).json({
+                msg:"perfil actualizado exitosamente",
+                token,
+                data:{
+                    user_id: userId,
+                    user_name: nextUserName,
+                    email: existinguser[0].email,
+                    bio: nextBio,
+                    location: nextLocation
+                }
+            });
     }
 catch (error) {
         return next(

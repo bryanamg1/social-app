@@ -26,7 +26,7 @@ export const profile = async (req,res)=>{
     }
 
     const [users] = await db.query(
-        "SELECT user_id, user_name, email, created_at FROM users WHERE user_id = ?",
+        "SELECT user_id, user_name, email, bio, location, created_at FROM users WHERE user_id = ?",
         [userId]
     );
 
@@ -41,12 +41,12 @@ export const profile = async (req,res)=>{
         );
     }
 
-    const { user_id, user_name, email, created_at } = users[0];
+    const { user_id, user_name, email, bio, location, created_at } = users[0];
 
     return res.status(200).json({
         ok: true,
         message: "Perfil de usuario",
-        data: { user_id, user_name, email, created_at },
+        data: { user_id, user_name, email, bio, location, created_at },
         });
     } catch (error) {
     console.error("profile error:", error);
@@ -234,9 +234,10 @@ export const updateProfile = async (req,res,next) =>{
             );
         }
 
-        const nextUserName = user_name?.trim() || existinguser[0].user_name;
-        const nextBio = bio !== undefined ? bio : existinguser[0].bio;
-        const nextLocation = location !== undefined ? location : existinguser[0].location;
+        const hasUserName = typeof user_name === "string" && user_name.trim() !== "";
+        const hasBio = typeof bio === "string";
+        const hasLocation = typeof location === "string";
+        const nextUserName = hasUserName ? user_name.trim() : existinguser[0].user_name;
 
         const [duplicatename]= await db.query(
             "SELECT * FROM users WHERE user_name = ? AND user_id <> ?",
@@ -252,21 +253,62 @@ export const updateProfile = async (req,res,next) =>{
                 })
             );
         };
-        await db.query("UPDATE users SET user_name = ?, bio = ?, location = ? WHERE user_id = ?",
-        [nextUserName,nextBio,nextLocation,userId]);
 
-        const token = jwt.sign({ user: { user_id: userId, name: nextUserName, email: existinguser[0].email } },
+        const updateFields = [];
+        const updateValues = [];
+
+        if(hasUserName){
+            updateFields.push("user_name = ?");
+            updateValues.push(nextUserName);
+        }
+
+        if(hasBio){
+            updateFields.push("bio = ?");
+            updateValues.push(bio.trim());
+        }
+
+        if(hasLocation){
+            updateFields.push("location = ?");
+            updateValues.push(location.trim());
+        }
+
+        if(updateFields.length === 0){
+            return res.status(200).json({
+                msg:"sin cambios para actualizar",
+                token:null,
+                data:{
+                    user_id: userId,
+                    user_name: existinguser[0].user_name,
+                    email: existinguser[0].email,
+                    bio: existinguser[0].bio,
+                    location: existinguser[0].location
+                }
+            });
+        }
+
+        await db.query(
+            `UPDATE users SET ${updateFields.join(", ")} WHERE user_id = ?`,
+            [...updateValues,userId]
+        );
+
+        const [updatedUsers]= await db.query(
+            "SELECT user_id, user_name, email, bio, location FROM users WHERE user_id = ?",
+            [userId]
+        );
+        const updatedUser = updatedUsers[0];
+
+        const token = jwt.sign({ user: { user_id: userId, name: updatedUser.user_name, email: updatedUser.email } },
         SECRET_KEY,{ expiresIn: "1h" });
 
             return res.status(200).json({
                 msg:"perfil actualizado exitosamente",
                 token,
                 data:{
-                    user_id: userId,
-                    user_name: nextUserName,
-                    email: existinguser[0].email,
-                    bio: nextBio,
-                    location: nextLocation
+                    user_id: updatedUser.user_id,
+                    user_name: updatedUser.user_name,
+                    email: updatedUser.email,
+                    bio: updatedUser.bio,
+                    location: updatedUser.location
                 }
             });
     }

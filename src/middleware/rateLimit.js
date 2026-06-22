@@ -17,7 +17,8 @@ export function buildRateLimit({
     code,
     message,
     keyGenerator = ipKeyGenerator,
-    prefix
+    prefix,
+    skip
 }) {
 
     const redisClient = getRedisClient();
@@ -42,6 +43,7 @@ export function buildRateLimit({
         standardHeaders: true,
         legacyHeaders: false,
         store,
+        skip,
         validate: {
             keyGeneratorIpFallback: false
         },
@@ -69,6 +71,8 @@ const GLOBAL_WINDOW_MS = toInt(process.env.RATE_LIMIT_GLOBAL_WINDOW_MS, 60000);
 const GLOBAL_MAX = toInt(process.env.RATE_LIMIT_GLOBAL_MAX, 120)
 const AUTH_WINDOW_MS = toInt(process.env.RATE_LIMIT_AUTH_WINDOW_MS, 10 * 60_000);
 const AUTH_MAX = toInt(process.env.RATE_LIMIT_AUTH_MAX, 7);
+const READ_WINDOW_MS = toInt(process.env.RATE_LIMIT_READ_WINDOW_MS, 60000);
+const READ_MAX = toInt(process.env.RATE_LIMIT_READ_MAX, 300);
 const DEV_BYPASS =
     process.env.NODE_ENV === "development" &&
     process.env.RATE_LIMIT_DEV_BYPASS === "true";  // asignar el valor en el .env en "false" para poder probar el rate limit (si el valor es "true" no hay limite)
@@ -83,6 +87,19 @@ export const rateLimitGlobal = DEV_BYPASS
         code: "RATE_LIMIT_EXCEEDED",
         message: "Demasiadas solicitudes. Intenta de nuevo en unos segundos.",
         prefix: "global",
+        keyGenerator: (req) => req.ip,
+        skip: (req) =>
+            req.method === "GET" && req.originalUrl.startsWith("/api/posts/allpost")
+    });
+
+export const rateLimitRead = DEV_BYPASS
+    ? (req, res, next) => next()
+    : buildRateLimit({
+        windowMs: READ_WINDOW_MS,
+        max: READ_MAX,
+        code: "READ_RATE_LIMIT_EXCEEDED",
+        message: "Demasiadas solicitudes de lectura. Intenta de nuevo en unos segundos.",
+        prefix: "read",
         keyGenerator: (req) => req.ip
     });
 

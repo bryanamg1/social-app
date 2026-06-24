@@ -18,8 +18,15 @@ export const insertComment = async (db,comment_text, parent_comment_id, postId, 
 export const readComments = async (db, postId) =>{
     try {
         const readCommentsQuery = `
-        SELECT * FROM  comments
-        WHERE post_id = ?
+        SELECT
+            c.*,
+            u.user_name,
+            u.email,
+            u.avatar_url
+        FROM comments c
+        LEFT JOIN users u ON c.user_id = u.user_id
+        WHERE c.post_id = ?
+        ORDER BY c.created_at ASC
         `;
 
         const [result] = await db.query(readCommentsQuery, [postId]);

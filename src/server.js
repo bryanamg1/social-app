@@ -5,6 +5,7 @@ import { registerMessagesSocket } from "./sockets/message.socket.js";
 import { notificationSocket } from "./sockets/notificationSocket.js";
 import { setIO } from "./sockets/sockets.js";
 import { connectDB } from "./config/db.js";
+import { isAllowedOrigin } from "./config/cors.js";
 
 const PORT = process.env.PORT || 8080;
 
@@ -15,14 +16,16 @@ if (process.env.NODE_ENV !== "test") {
   await connectDB();
 }
 
-const allowedOrigins =
-  process.env.NODE_ENV === "production"
-    ? [process.env.FRONTEND_URL]
-    : ["http://localhost:5173", "http://localhost:3000"];
-
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn(`Socket CORS blocked origin: ${origin}`);
+      return callback(new Error("SOCKET_CORS_BLOCKED"), false);
+    },
     methods: ["GET", "POST"],
     credentials: true,
   },

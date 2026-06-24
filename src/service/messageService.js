@@ -5,15 +5,14 @@ export const insertMessage = async (db, conversationId, senderId, content) => {
   );
 
   const messageId = result.insertId;
-  console.log({
-    conversationId,
-    senderId,
-    content
-  });
-  
+
+  await db.query(
+    `UPDATE conversations SET modified_at = CURRENT_TIMESTAMP WHERE conversation_id = ?`,
+    [conversationId]
+  );
 
   const [rows] = await db.query(
-    `SELECT message_id, conversation_id, sender_id, content, created_at, seen
+    `SELECT message_id, conversation_id, sender_id, content, created_at, modified_at
      FROM messages WHERE message_id = ?`,
     [messageId]
   );

@@ -1,10 +1,17 @@
 import { Router } from "express";
-import {createOrGetConversations,getMyConversations,getConversationsMessages} from "../controllers/conversationController.js";
+import auth from "../middleware/auth.js";
+import {
+  createOrGetConversations,
+  getMyConversations,
+  getConversationsMessages,
+  sendMessageRest,
+} from "../controllers/conversationController.js";
 
 const router = Router();
 
-router.post('/addConversations', createOrGetConversations);
-router.get('/myConversations', getMyConversations);
-router.get('/readMessage/:id/message', getConversationsMessages);
+router.post('/addConversations', auth, createOrGetConversations);
+router.get('/myConversations', auth, getMyConversations);
+router.get('/readMessage/:id/message', auth, getConversationsMessages);
+router.post('/sendMessage', auth, sendMessageRest);
 
 export default router

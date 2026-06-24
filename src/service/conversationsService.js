@@ -38,7 +38,7 @@ export const userBelongsToConversation = async (db, conversationId, userId) => {
 export const getMessagesByConversation = async (db, conversationId, limit = 50, offset = 0) => {
   const [rows] = await db.query(
     `
-    SELECT message_id, conversation_id, sender_id, content, created_at, seen
+    SELECT message_id, conversation_id, sender_id, content, created_at, modified_at
     FROM messages
     WHERE conversation_id = ?
     ORDER BY created_at ASC
@@ -55,6 +55,11 @@ export const getUserConversations = async (db, userId) => {
     SELECT
       c.conversation_id,
       c.created_at,
+      c.modified_at,
+      participant.user_id AS participant_user_id,
+      participant.user_name AS participant_user_name,
+      participant.email AS participant_email,
+      participant.avatar_url AS participant_avatar_url,
       (
         SELECT m.content
         FROM messages m
@@ -72,8 +77,13 @@ export const getUserConversations = async (db, userId) => {
     FROM conversations c
     JOIN conversation_users cu
       ON cu.conversation_id = c.conversation_id
+    LEFT JOIN conversation_users participant_cu
+      ON participant_cu.conversation_id = c.conversation_id
+      AND participant_cu.user_id <> cu.user_id
+    LEFT JOIN users participant
+      ON participant.user_id = participant_cu.user_id
     WHERE cu.user_id = ?
-    ORDER BY last_message_at DESC
+    ORDER BY COALESCE(last_message_at, c.modified_at, c.created_at) DESC
     `,
     [userId]
   );

@@ -1,23 +1,44 @@
-import {getDB} from "../config/db.js";
-import {findConversationBetweenTwoUsers,createConversation,addUsersToConversation,userBelongsToConversation,getMessagesByConversation,getUserConversations} from "../service/conversationsService.js";
+import { getDB } from "../config/db.js";
+import {
+  findConversationBetweenTwoUsers,
+  createConversation,
+  addUsersToConversation,
+  userBelongsToConversation,
+  getMessagesByConversation,
+  getUserConversations,
+} from "../service/conversationsService.js";
 import { insertMessage } from "../service/messageService.js";
 import { AppError } from "../utils/utils.js";
+
+const getAuthenticatedUserId = (req) => {
+  return Number(req.user?.user_id ?? req.user?.id ?? req.user?.user?.id);
+};
 
 export const createOrGetConversations = async (req, res, next) => {
   try {
     const db = await getDB();
-    const { user_id, other_user_id } = req.body;
+    const { other_user_id } = req.body;
 
-    const userId = parseInt(user_id, 10);
+    const userId = getAuthenticatedUserId(req);
     const otherUserId = parseInt(other_user_id, 10);
 
-    if (isNaN(userId) || isNaN(otherUserId)) {
+    if (isNaN(userId)) {
       return next(
         new AppError({
-          code: "USER_IDS_INVALID",
-          message: "Invalid or missing user IDs",
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
+        })
+      );
+    }
+
+    if (isNaN(otherUserId)) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "Invalid or missing user ID",
           status: 400,
-          details: { user_id, other_user_id },
+          details: { other_user_id },
         })
       );
     }
@@ -33,7 +54,11 @@ export const createOrGetConversations = async (req, res, next) => {
       );
     }
 
-    let conversationId = await findConversationBetweenTwoUsers(db, userId, otherUserId);
+    let conversationId = await findConversationBetweenTwoUsers(
+      db,
+      userId,
+      otherUserId
+    );
 
     if (!conversationId) {
       conversationId = await createConversation(db);
@@ -42,7 +67,7 @@ export const createOrGetConversations = async (req, res, next) => {
 
     return res.status(200).json({
       ok: true,
-      message: "✅ Conversation retrieved successfully",
+      message: "Conversation retrieved successfully",
       data: { conversationId },
     });
   } catch (error) {
@@ -62,16 +87,14 @@ export const createOrGetConversations = async (req, res, next) => {
 export const getMyConversations = async (req, res, next) => {
   try {
     const db = await getDB();
-    // ✅ unificamos: user_id
-    const userId = parseInt(req.query.uid, 10);
+    const userId = getAuthenticatedUserId(req);
 
     if (isNaN(userId)) {
       return next(
         new AppError({
-          code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
-          status: 400,
-          details: { param: req.query.user_id },
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
         })
       );
     }
@@ -80,7 +103,7 @@ export const getMyConversations = async (req, res, next) => {
 
     return res.status(200).json({
       ok: true,
-      message: "✅ Conversations retrieved successfully",
+      message: "Conversations retrieved successfully",
       data: {
         userId,
         conversations,
@@ -100,20 +123,18 @@ export const getMyConversations = async (req, res, next) => {
   }
 };
 
-
 export const getConversationsMessages = async (req, res, next) => {
   try {
     const db = await getDB();
     const conversationId = parseInt(req.params.id, 10);
-    const userId = parseInt(req.query.uid, 10);
+    const userId = getAuthenticatedUserId(req);
 
     if (isNaN(userId)) {
       return next(
         new AppError({
-          code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
-          status: 400,
-          details: { param: req.query.user_id },
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
         })
       );
     }
@@ -138,18 +159,23 @@ export const getConversationsMessages = async (req, res, next) => {
       return next(
         new AppError({
           code: "CONVERSATION_FORBIDDEN",
-          message: "No perteneces a esta conversación",
+          message: "No perteneces a esta conversacion",
           status: 403,
           details: { conversationId, userId },
         })
       );
     }
 
-    const messages = await getMessagesByConversation(db, conversationId, limit, offset);
+    const messages = await getMessagesByConversation(
+      db,
+      conversationId,
+      limit,
+      offset
+    );
 
     return res.status(200).json({
       ok: true,
-      message: "✅ Messages retrieved successfully",
+      message: "Messages retrieved successfully",
       data: {
         conversationId,
         userId,
@@ -173,34 +199,33 @@ export const getConversationsMessages = async (req, res, next) => {
   }
 };
 
-
 export const sendMessageRest = async (req, res, next) => {
   try {
     const db = await getDB();
-    const { senderId, conversationId, content } = req.body;
+    const { conversationId, conversation_id, content } = req.body;
 
-    const sender_id = parseInt(senderId, 10);
-    const conversation_id = parseInt(conversationId, 10);
+    const senderId = getAuthenticatedUserId(req);
+    const nextConversationId = conversationId ?? conversation_id;
+    const parsedConversationId = parseInt(nextConversationId, 10);
     const text = String(content ?? "").trim();
 
-    if (isNaN(sender_id)) {
+    if (isNaN(senderId)) {
       return next(
         new AppError({
-          code: "SENDER_ID_INVALID",
-          message: "Invalid or missing sender ID",
-          status: 400,
-          details: { senderId },
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
         })
       );
     }
 
-    if (isNaN(conversation_id)) {
+    if (isNaN(parsedConversationId)) {
       return next(
         new AppError({
           code: "CONVERSATION_ID_INVALID",
           message: "Invalid or missing conversation ID",
           status: 400,
-          details: { conversationId },
+          details: { conversationId: nextConversationId },
         })
       );
     }
@@ -215,24 +240,33 @@ export const sendMessageRest = async (req, res, next) => {
       );
     }
 
-    const allowed = await userBelongsToConversation(db, conversation_id, sender_id);
+    const allowed = await userBelongsToConversation(
+      db,
+      parsedConversationId,
+      senderId
+    );
 
     if (!allowed) {
       return next(
         new AppError({
           code: "CONVERSATION_FORBIDDEN",
-          message: "No perteneces a esta conversación",
+          message: "No perteneces a esta conversacion",
           status: 403,
-          details: { conversation_id, sender_id },
+          details: { conversation_id: parsedConversationId, sender_id: senderId },
         })
       );
     }
 
-    const message = await insertMessage(db, conversation_id, sender_id, text);
+    const message = await insertMessage(
+      db,
+      parsedConversationId,
+      senderId,
+      text
+    );
 
     return res.status(201).json({
       ok: true,
-      message: "✅ Message sent successfully",
+      message: "Message sent successfully",
       data: { message },
     });
   } catch (error) {

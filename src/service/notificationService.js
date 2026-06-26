@@ -76,20 +76,25 @@ export const markseen = async (notificationId, userId) =>{
         'UPDATE notifications SET seen = 1 WHERE id = ? AND user_id = ?',
         [notificationId, userId]
     );
+    const notification = await getNotificationById(db, notificationId);
     const [[{total}]] = await db.query(
         'SELECT COUNT(*) AS total FROM notifications WHERE user_id = ? AND seen = 0',
         [userId]
     );
     const io = getIO();
     io.of("/notifications").to(`user_${userId}`).emit('notification:count', { total });
+    return notification;
 }
 
 export const markallseen = async (userId) => {
     const db = getDB();
-    await db.query(
+    const [result] = await db.query(
         'UPDATE notifications SET seen = 1 WHERE user_id = ?',
         [userId]
     );
     const io = getIO();
-    io.of("/notifications").to(`user_${userId}`).emit('notification:count', 0);
+    io.of("/notifications").to(`user_${userId}`).emit('notification:count', { total: 0 });
+    return {
+        affectedRows: result?.affectedRows ?? 0,
+    };
 }

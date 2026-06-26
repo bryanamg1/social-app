@@ -1,27 +1,64 @@
 import {getDB} from '../config/db.js';
 import { getIO } from '../sockets/sockets.js';
 
+export const NOTIFICATION_TYPES = {
+    FOLLOW: "follow",
+    COMMENT: "comment",
+    REACTION: "reaction",
+    MESSAGE: "message",
+};
 
+const getNotificationById = async (db, notificationId) => {
+    const [rows] = await db.query(
+        "SELECT * FROM notifications WHERE id = ? LIMIT 1",
+        [notificationId]
+    );
 
-export const createNotification = async (userId, type,relateId,from_userId) => {
+    return rows[0] ?? null;
+};
+
+export const createNotification = async (userId, type, relateId, from_userId) => {
     const db = getDB();
-        const [result] = await db.query(
-            'INSERT INTO notifications (user_id, type, relate_id, from_userId) VALUES (?,?,?,?)',
-            [userId, type, relateId,from_userId]
-        );
-            const notificationId = result.insertId;
-            const notification = { id: notificationId, type, relateId, from_userId };
-            const io = getIO();
+    const recipientUserId = Number(userId);
+    const actorUserId =
+        from_userId === null || from_userId === undefined
+            ? null
+            : Number(from_userId);
 
-            io.of("/notifications").to(`user_${userId}`).emit('notification:new', notification);
+    if (
+        Number.isNaN(recipientUserId) ||
+        !type ||
+        (actorUserId !== null && Number.isNaN(actorUserId))
+    ) {
+        return null;
+    }
 
-        const [[{total}]] = await db.query(
-            'SELECT COUNT(*) AS total FROM notifications WHERE user_id = ? AND seen = 0',
-            [userId]
-        );
-        io.of("/notifications").to(`user_${userId}`).emit('notification:count', { total });
+    if (actorUserId !== null && recipientUserId === actorUserId) {
+        return null;
+    }
 
-            return notificationId;
+    const [result] = await db.query(
+        'INSERT INTO notifications (user_id, type, relate_id, from_userId) VALUES (?,?,?,?)',
+        [recipientUserId, type, relateId, actorUserId]
+    );
+
+    const notification = await getNotificationById(db, result.insertId);
+    const io = getIO();
+
+    io.of("/notifications")
+        .to(`user_${recipientUserId}`)
+        .emit('notification:new', notification);
+
+    const [[{total}]] = await db.query(
+        'SELECT COUNT(*) AS total FROM notifications WHERE user_id = ? AND seen = 0',
+        [recipientUserId]
+    );
+
+    io.of("/notifications")
+        .to(`user_${recipientUserId}`)
+        .emit('notification:count', { total });
+
+    return notification?.id ?? result.insertId;
 }
 
 export const getnotifications = async (userId)=>{

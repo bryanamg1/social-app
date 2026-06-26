@@ -1,6 +1,13 @@
 import { getDB } from "../config/db.js";
 import { insertMessage } from "../service/messageService.js";
-import { userBelongsToConversation } from "../service/conversationsService.js";
+import {
+  getConversationRecipientUserId,
+  userBelongsToConversation,
+} from "../service/conversationsService.js";
+import {
+  createNotification,
+  NOTIFICATION_TYPES,
+} from "../service/notificationService.js";
 import { authenticateSocket, getSocketUserId } from "./socketAuth.js";
 
 export const registerMessagesSocket = (io) => {
@@ -78,6 +85,20 @@ export const registerMessagesSocket = (io) => {
         }
 
         const message = await insertMessage(db, conversationId, senderId, text);
+        const recipientUserId = await getConversationRecipientUserId(
+          db,
+          conversationId,
+          senderId
+        );
+
+        if (recipientUserId) {
+          await createNotification(
+            recipientUserId,
+            NOTIFICATION_TYPES.MESSAGE,
+            conversationId,
+            senderId
+          );
+        }
 
         nsp.to(`conv:${conversationId}`).emit("messages:new", message);
 

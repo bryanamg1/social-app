@@ -35,6 +35,20 @@ export const userBelongsToConversation = async (db, conversationId, userId) => {
   return rows.length > 0;
 };
 
+export const getConversationRecipientUserId = async (db, conversationId, userId) => {
+  const [rows] = await db.query(
+    `
+    SELECT user_id
+    FROM conversation_users
+    WHERE conversation_id = ? AND user_id <> ?
+    LIMIT 1
+    `,
+    [conversationId, userId]
+  );
+
+  return rows[0]?.user_id ?? null;
+};
+
 export const getMessagesByConversation = async (db, conversationId, limit = 50, offset = 0) => {
   const [rows] = await db.query(
     `

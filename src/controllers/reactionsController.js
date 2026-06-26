@@ -1,4 +1,6 @@
 import {getDB} from "../config/db.js";
+import { createNotification, NOTIFICATION_TYPES } from "../service/notificationService.js";
+import { getPostById } from "../service/postsService.js";
 import {AppError} from "../utils/utils.js"
 
 export const toggleReactionPost = async (req, res, next) => {
@@ -105,6 +107,17 @@ export const toggleReactionPost = async (req, res, next) => {
       "INSERT INTO post_reactions (user_id, post_id, reaction_type) VALUES (?, ?, ?)",
       [userId, postId, status]
     );
+
+    const post = await getPostById(db, postId);
+
+    if (post?.user_id) {
+      await createNotification(
+        post.user_id,
+        NOTIFICATION_TYPES.REACTION,
+        postId,
+        userId
+      );
+    }
 
     return res.status(201).json({
       ok: true,

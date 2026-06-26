@@ -1,7 +1,7 @@
-
-import { application } from "express";
 import {getDB} from "../config/db.js";
 import { insertComment, readComments } from "../service/commentService.js";
+import { createNotification, NOTIFICATION_TYPES } from "../service/notificationService.js";
+import { getPostById } from "../service/postsService.js";
 import { AppError } from "../utils/utils.js";
 
 export const addComment = async (req, res, next) =>{
@@ -70,9 +70,19 @@ export const addComment = async (req, res, next) =>{
     }
 
     const result = await insertComment(db,comment_text, parent_comment_id, postId, userId)
+    const post = await getPostById(db, postId);
+
+    if (post?.user_id) {
+        await createNotification(
+            post.user_id,
+            NOTIFICATION_TYPES.COMMENT,
+            postId,
+            userId
+        );
+    }
 
     res.status(201).json({
-        message: "✅ Comment added successfully",
+        message: "Comment added successfully",
       commentId: result.insertId,
     })
 
@@ -110,7 +120,7 @@ export const commentsByPost = async (req, res, next) => {
 
         return res.status(200).json({
         ok: true,
-        message: "✅ Comments retrieved successfully",
+        message: "Comments retrieved successfully",
         comments: result,
         });
     } catch (error) {

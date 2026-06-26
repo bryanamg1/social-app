@@ -1,4 +1,8 @@
 import {getDB} from "../config/db.js";
+import {
+  createNotification,
+  NOTIFICATION_TYPES,
+} from "../service/notificationService.js";
 import { AppError } from "../utils/utils.js";
 
 export const getFollowStatus = async (req, res, next) => {
@@ -95,6 +99,12 @@ export const followUser = async (req, res, next) =>{
 
         await db.query("INSERT INTO follows (follower_id, followed_id, created_at) Values (?,?,NOW())",
             [followidUser, followerid]
+        );
+        await createNotification(
+            followerid,
+            NOTIFICATION_TYPES.FOLLOW,
+            followidUser,
+            followidUser
         );
         res.status(201).json({msg:"Seguiendo al usuario"});
     }catch (error) {

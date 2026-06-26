@@ -1,51 +1,13 @@
-import dotenv from "dotenv";
-import jwt from "jsonwebtoken";
-
 import { getDB } from "../config/db.js";
 import { insertMessage } from "../service/messageService.js";
 import { userBelongsToConversation } from "../service/conversationsService.js";
-
-dotenv.config();
-
-const SECRET_KEY = process.env.JWT_SECRET;
-
-const getSocketToken = (socket) => {
-  const authToken = socket.handshake.auth?.token;
-  const headerToken = socket.handshake.headers?.authorization?.replace(
-    "Bearer ",
-    ""
-  );
-
-  return authToken || headerToken || null;
-};
-
-const getSocketUserId = (socket) => {
-  return Number(
-    socket.data?.user?.user_id ??
-      socket.data?.user?.id ??
-      socket.data?.user?.user?.id
-  );
-};
+import { authenticateSocket, getSocketUserId } from "./socketAuth.js";
 
 export const registerMessagesSocket = (io) => {
   const db = getDB();
   const nsp = io.of("/messages");
 
-  nsp.use((socket, next) => {
-    const token = getSocketToken(socket);
-
-    if (!token) {
-      return next(new Error("SOCKET_UNAUTHORIZED"));
-    }
-
-    try {
-      const verified = jwt.verify(token, SECRET_KEY);
-      socket.data.user = verified.user || verified;
-      next();
-    } catch {
-      next(new Error("SOCKET_UNAUTHORIZED"));
-    }
-  });
+  nsp.use(authenticateSocket);
 
   nsp.on("connection", (socket) => {
     console.log("Usuario conectado a /messages");

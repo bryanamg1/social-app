@@ -11,7 +11,7 @@ const createPostReactionNotification = async ({ postOwnerId, postId, userId }) =
   try {
     await createNotification(
       postOwnerId,
-      NOTIFICATION_TYPES.REACTION,
+      NOTIFICATION_TYPES.REACTION_POST,
       postId,
       userId
     );

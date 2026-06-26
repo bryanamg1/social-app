@@ -75,7 +75,7 @@ export const addComment = async (req, res, next) =>{
     if (post?.user_id) {
         await createNotification(
             post.user_id,
-            NOTIFICATION_TYPES.COMMENT,
+            NOTIFICATION_TYPES.COMMENT_POST,
             postId,
             userId
         );

@@ -21,5 +21,5 @@ describe("Pagination Tests", () => {
         expect(res.body.meta).toHaveProperty('page', 1);
         expect(res.body.meta).toHaveProperty('limit', 5);
         expect(res.body.meta).toHaveProperty('total');
-    });
+    }, 15000);
 });

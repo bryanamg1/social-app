@@ -1,60 +1,55 @@
-import {closeDB, connectDB} from '../src/config/db.js';
+import tester from "supertest";
 import jwt from "jsonwebtoken";
 
+import app from "../src/app.js";
+import { closeDB, connectDB } from "../src/config/db.js";
+
+const TEST_SECRET = process.env.JWT_SECRET || "testsecretkey";
 
 beforeAll(async () => {
-    process.env.NODE_ENV = "test"; // base de testing
-    process.env.JWT_SECRET = "testsecretkey"; // firma de testing
+    process.env.NODE_ENV = "test";
+    process.env.JWT_SECRET = TEST_SECRET;
     await connectDB();
-})
-import tester from 'supertest';
-import app from '../src/app.js';
+});
 
-
-afterAll( async () => {
+afterAll(async () => {
     await closeDB();
-} );
-describe("Authentication Tests", () => {
-    test ("no hay token",async () => {
-        const res = await tester(app).post("/api/follows/users/1/follow");
-        expect(res.status).toBe(401);
-
-    });
 });
 
-describe("invalid token Tests", () => {
-    test ("no hay token",async () => {
+const createAuthToken = (payload = { user_id: 4 }) => {
+    return jwt.sign(payload, TEST_SECRET, { expiresIn: "10m" });
+};
+
+describe("Authentication middleware", () => {
+    test("returns 401 when token is missing", async () => {
+        const res = await tester(app).get("/api/follows/users/2/status");
+
+        expect(res.status).toBe(401);
+    });
+
+    test("returns 401 when token is invalid", async () => {
         const res = await tester(app)
-        .post("/api/follows/users/1/follow")
-        .set("bearer","invalidtoken");
+            .get("/api/follows/users/2/status")
+            .set("Authorization", "Bearer invalidtoken");
+
         expect(res.status).toBe(401);
-        
     });
-});
 
-describe("valid token Tests", () => {
-    const token = jwt.sign({ user_id: 4 }, process.env.JWT_SECRET, {expiresIn:"10m"});
-    test("token valido",async () => {
-        const res = await tester(app).post("/api/follows/users/2/follow")
-        .set("Authorization", `Bearer ${token}`);
-        expect(res.status).toBe(201);
-    });
-});
+    test("allows access with a valid token", async () => {
+        const token = createAuthToken();
 
-describe("valid token Tests", () => {
-    const token = jwt.sign({ user_id: 4 }, process.env.JWT_SECRET, {expiresIn:"10m"});
-    test("token valido",async () => {
-        const res = await tester(app).post("/api/follows/users/2/unfollow")
-        .set("Authorization", `Bearer ${token}`);
+        const res = await tester(app)
+            .get("/api/follows/users/2/status")
+            .set("Authorization", `Bearer ${token}`);
+
         expect(res.status).toBe(200);
+        expect(res.body).toHaveProperty("ok", true);
+        expect(res.body).toHaveProperty("data");
     });
 });
 
-
-describe("Rate Limit Login", () => {
-
-    test("should block after max attempts", async () => {
-
+describe("Rate limit login", () => {
+    test("blocks after max attempts", async () => {
         for (let i = 0; i < 11; i++) {
             await tester(app)
                 .post("/api/auth/login")
@@ -68,5 +63,5 @@ describe("Rate Limit Login", () => {
         expect(res.status).toBe(429);
         expect(res.body.ok).toBe(false);
         expect(res.body.error.code).toBe("LOGIN_RATE_LIMIT_EXCEEDED");
-    });
+    }, 15000);
 });

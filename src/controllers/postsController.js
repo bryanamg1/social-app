@@ -9,8 +9,8 @@ export const addpost = async (req, res, next) => {
       const db = await getDB();
      const postData = req.body;
      const userId = parseInt(req.params.id, 10);
-
-     const {image_url: imageUrlFromBody} = req.body
+     const {image_url: imageUrlFromBody} = req.body;
+     const normalizedContent = String(postData?.content ?? "").trim();
 
      let image_url = null;
  // validations
@@ -32,7 +32,7 @@ export const addpost = async (req, res, next) => {
       );
     }
 
-    if (!postData || Object.keys(postData).length === 0) {
+    if (!normalizedContent && !image_url) {
       return next(
         new AppError({
           code: "POST_DATA_EMPTY",
@@ -42,19 +42,17 @@ export const addpost = async (req, res, next) => {
       );
     }
 
-    if (!postData.content || postData.content.trim() === "") {
-      return next(
-        new AppError({
-          code: "POST_CONTENT_REQUIRED",
-          message: "Post content is required",
-          status: 400,
-        })
-      );
-    }
-
     
 // insert
-    const result = await insertPost(db, postData, userId, image_url);
+    const result = await insertPost(
+      db,
+      {
+        ...postData,
+        content: normalizedContent,
+      },
+      userId,
+      image_url
+    );
 
     await invalidateCache("posts:list:*");
 

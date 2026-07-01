@@ -7,7 +7,7 @@ export const insertPost = async(db, postData, userId, image_url) =>{
         VALUES (?, ?, ?)
         `;
 
-        const {content} = postData;
+        const content = String(postData?.content ?? "");
 
         const result = await db.query(inserPostQuery, [userId, content, image_url]);
         console.log("✅ Post inserted successfully", result)

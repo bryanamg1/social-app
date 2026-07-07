@@ -3,6 +3,12 @@ import {
   createNotification,
   NOTIFICATION_TYPES,
 } from "../service/notificationService.js";
+import {
+  countFollowingFeedPosts,
+  getFollowingFeedPosts,
+  getSuggestedUsers,
+} from "../service/followsService.js";
+import { pagination } from "../utils/pagination.js";
 import { AppError } from "../utils/utils.js";
 
 export const getFollowStatus = async (req, res, next) => {
@@ -219,9 +225,9 @@ export const unfollowUser = async (req, res, next) => {
 
 export const feedfollowers = async (req, res, next) => {
     try {
-        // Buscamos en ambas propiedades por si acaso
-        const idRaw = req.user.user_id || req.user.id;
+        const idRaw = req.user?.user_id || req.user?.id;
         const userId = parseInt(idRaw, 10);
+        const { page, limit, offset } = pagination(req);
 
         if (isNaN(userId)) {
             return next(new AppError({
@@ -230,23 +236,30 @@ export const feedfollowers = async (req, res, next) => {
                 status: 400,
             }));
         }
+
         const db = getDB();
-        const [feed] = await db.query(
-            `SELECT p.post_id, p.content, p.image_url, p.created_at, u.user_id, u.user_name FROM posts p
-            JOIN users u ON p.user_id = u.user_id
-            JOIN follows f ON u.user_id = f.followed_id WHERE f.follower_id = ? ORDER BY p.created_at DESC`,
-            [userId]
-        );
-        if (feed.length === 0) {
-            return next(
-                new AppError({
-                    code: "NOT_FOUND_POST",
-                    message: "este usuari no tiene post",
-                    status: 400
-                })
-            )
-        }
-        res.status(200).json({msg:"feed de los usuarios que sigues",data:feed});
+        const [feed, total] = await Promise.all([
+            getFollowingFeedPosts(db, {
+                currentUserId: userId,
+                limit,
+                offset,
+            }),
+            countFollowingFeedPosts(db, {
+                currentUserId: userId,
+            }),
+        ]);
+
+        return res.status(200).json({
+            ok: true,
+            message: "feed de los usuarios que sigues",
+            data: feed,
+            meta: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        });
     } catch (error) {
         return next(
             new AppError({
@@ -258,4 +271,46 @@ export const feedfollowers = async (req, res, next) => {
         )
 
     }
-}
+};
+
+export const getFollowSuggestions = async (req, res, next) => {
+  try {
+    const db = getDB();
+    const currentUserId = Number(req.user?.user_id || req.user?.id);
+    const requestedLimit = Number(req.query.limit);
+    const limit = Math.min(Math.max(requestedLimit || 4, 1), 12);
+
+    if (!currentUserId) {
+      return next(
+        new AppError({
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
+        })
+      );
+    }
+
+    const suggestions = await getSuggestedUsers(db, {
+      currentUserId,
+      limit,
+    });
+
+    return res.status(200).json({
+      ok: true,
+      data: suggestions,
+      meta: {
+        count: suggestions.length,
+        limit,
+      },
+    });
+  } catch (error) {
+    return next(
+      new AppError({
+        code: "FOLLOW_SUGGESTIONS_FAILED",
+        message: "No se pudieron obtener sugerencias de usuarios",
+        status: 500,
+        details: error?.message || null,
+      })
+    );
+  }
+};

@@ -122,12 +122,38 @@ Tablas de mensajería implementadas:
 - `conversations`
 - `conversation_users`
 - `messages`
+- `password_reset_tokens` (manual, para recuperacion de contrasena)
 
 Relación resumida:
 
 - `conversations` representa una conversación
 - `conversation_users` vincula usuarios participantes con cada conversación
 - `messages` almacena los mensajes asociados a una conversación mediante `conversation_id` y al emisor mediante `sender_id`
+
+---
+
+## Recuperacion de contrasena
+
+Endpoints agregados:
+
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+
+Variables de entorno requeridas:
+
+- `MAIL_HOST`
+- `MAIL_PORT`
+- `MAIL_SECURE`
+- `MAIL_USER`
+- `MAIL_PASSWORD`
+- `MAIL_FROM`
+- `MAIL_FROM_NAME`
+- `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES`
+- `FRONTEND_URL`
+
+SQL manual requerido:
+
+Aplicar el script versionado en `password-reset-tokens.sql` antes de probar el flujo completo.
 
 ---
 

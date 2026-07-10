@@ -2,6 +2,7 @@ import {
   getMailFromValue,
   getMailSenderIdentity,
   getMailProvider,
+  getSmtpConfigSummary,
   getMailTransporter,
   getMailtrapApiConfig,
   getMissingMailEnvVars,
@@ -13,6 +14,7 @@ const APP_NAME = "Social App";
 const PASSWORD_RECOVERY_EMAIL_TIMEOUT_MESSAGE =
   "PASSWORD_RECOVERY_EMAIL_TIMEOUT";
 const MAILTRAP_PROVIDER_ERROR_CODE = "MAIL_PROVIDER_REQUEST_FAILED";
+const SMTP_PROVIDER_ERROR_CODE = "MAIL_PROVIDER_SMTP_FAILED";
 const MAX_MAILTRAP_RESPONSE_LENGTH = 500;
 
 const buildPasswordResetText = ({ userName, resetUrl, expiresInMinutes }) => {
@@ -62,11 +64,17 @@ const redactSensitiveValue = (value) => {
     return value;
   }
 
-  if (value.length <= MAX_MAILTRAP_RESPONSE_LENGTH) {
-    return value;
+  const mailPassword = process.env.MAIL_PASSWORD;
+  const sanitizedValue =
+    mailPassword && value.includes(mailPassword)
+      ? value.replaceAll(mailPassword, "[redacted]")
+      : value;
+
+  if (sanitizedValue.length <= MAX_MAILTRAP_RESPONSE_LENGTH) {
+    return sanitizedValue;
   }
 
-  return `${value.slice(0, MAX_MAILTRAP_RESPONSE_LENGTH)}...`;
+  return `${sanitizedValue.slice(0, MAX_MAILTRAP_RESPONSE_LENGTH)}...`;
 };
 
 const sanitizeMailtrapResponse = (value, depth = 0) => {
@@ -113,6 +121,60 @@ const parseMailtrapResponseBody = (rawBody) => {
   } catch {
     return sanitizeMailtrapResponse(rawBody);
   }
+};
+
+const inferSmtpErrorStage = (error) => {
+  const code = `${error?.code || ""}`.toUpperCase();
+  const command = `${error?.command || ""}`.toUpperCase();
+  const message = `${error?.message || ""}`.toLowerCase();
+
+  if (code === "ETIMEDOUT" || message.includes("timeout")) {
+    return "timeout";
+  }
+
+  if (code === "EAUTH" || command === "AUTH" || message.includes("auth")) {
+    return "auth";
+  }
+
+  if (
+    command === "CONN" ||
+    code === "ECONNECTION" ||
+    message.includes("connection refused") ||
+    message.includes("socket closed")
+  ) {
+    return "connection";
+  }
+
+  if (
+    message.includes("tls") ||
+    message.includes("ssl") ||
+    message.includes("handshake")
+  ) {
+    return "tls";
+  }
+
+  if (command === "MAIL FROM" || command === "RCPT TO" || command === "DATA") {
+    return "send";
+  }
+
+  if (code === "ESOCKET") {
+    return "socket";
+  }
+
+  return "unknown";
+};
+
+export const buildSmtpErrorDetails = (error, smtpConfigSummary = getSmtpConfigSummary()) => {
+  return {
+    ...smtpConfigSummary,
+    code: error?.code || null,
+    command: error?.command || null,
+    responseCode: error?.responseCode || null,
+    response: redactSensitiveValue(error?.response || null),
+    reason: redactSensitiveValue(error?.reason || null),
+    message: redactSensitiveValue(error?.message || null),
+    stage: inferSmtpErrorStage(error),
+  };
 };
 
 const buildMailtrapRequestPayload = ({
@@ -197,8 +259,14 @@ const sendPasswordResetEmailBySmtp = async ({
   expiresInMinutes,
 }) => {
   const transporter = getMailTransporter();
+  const smtpConfigSummary = getSmtpConfigSummary();
 
   try {
+    console.info("[mail-provider] sending password recovery email", {
+      ...smtpConfigSummary,
+      hasRecipient: Boolean(to),
+    });
+
     await transporter.sendMail({
       from: getMailFromValue(),
       to,
@@ -215,13 +283,20 @@ const sendPasswordResetEmailBySmtp = async ({
       }),
     });
   } catch (error) {
+    const smtpErrorDetails = buildSmtpErrorDetails(error, smtpConfigSummary);
     const errorCode = error?.code || error?.responseCode || null;
     const rawMessage = `${error?.message || ""}`.toLowerCase();
 
+    console.error("[mail-provider] SMTP request failed", smtpErrorDetails);
+
     if (errorCode === "ETIMEDOUT" || rawMessage.includes("timeout")) {
-      throw createTimeoutError();
+      const timeoutError = createTimeoutError();
+      timeoutError.details = smtpErrorDetails;
+      throw timeoutError;
     }
 
+    error.code = error?.code || SMTP_PROVIDER_ERROR_CODE;
+    error.details = smtpErrorDetails;
     throw error;
   }
 };

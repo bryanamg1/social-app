@@ -78,6 +78,26 @@ export const createPasswordResetUrl = (token) => {
   return resetUrl.toString();
 };
 
+export const findPasswordRecoveryUserByEmail = async (db, email) => {
+  const normalizedEmail = `${email || ""}`.trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const [rows] = await db.execute(
+    `
+      SELECT user_id, user_name, email
+      FROM users
+      WHERE LOWER(TRIM(email)) = ?
+      LIMIT 1
+    `,
+    [normalizedEmail]
+  );
+
+  return rows[0] || null;
+};
+
 export const invalidateActivePasswordResetTokens = async (db, userId) => {
   await db.execute(
     `
@@ -105,6 +125,35 @@ export const storePasswordResetToken = async (
   );
 
   return result.insertId;
+};
+
+export const deletePasswordResetTokenById = async (db, resetTokenId) => {
+  await db.execute("DELETE FROM password_reset_tokens WHERE id = ?", [
+    resetTokenId,
+  ]);
+};
+
+export const createPasswordRecoveryRequest = async (db, email) => {
+  const user = await findPasswordRecoveryUserByEmail(db, email);
+
+  if (!user) {
+    return null;
+  }
+
+  const { plainToken, tokenHash } = createPasswordResetToken();
+  const expiresAt = createPasswordResetExpiry();
+  const resetTokenId = await storePasswordResetToken(db, {
+    userId: user.user_id,
+    tokenHash,
+    expiresAt,
+  });
+
+  return {
+    resetTokenId,
+    user,
+    resetUrl: createPasswordResetUrl(plainToken),
+    expiresInMinutes: getPasswordResetExpiresMinutes(),
+  };
 };
 
 export const findPasswordResetRecordByToken = async (db, token) => {

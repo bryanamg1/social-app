@@ -10,11 +10,9 @@ import { getMissingMailEnvVars, isMailConfigured } from "../config/mail.js";
 import { sendPasswordResetEmail } from "../service/emailService.js";
 import {
     clearUserRefreshTokens,
-    createPasswordResetExpiry,
-    createPasswordResetToken,
-    createPasswordResetUrl,
+    createPasswordRecoveryRequest,
+    deletePasswordResetTokenById,
     findPasswordResetRecordByToken,
-    getPasswordResetExpiresMinutes,
     invalidateActivePasswordResetTokens,
     isPasswordResetRecordExpired,
     markPasswordResetTokenUsed,
@@ -22,7 +20,6 @@ import {
     PASSWORD_RESET_PUBLIC_MESSAGE,
     PASSWORD_RESET_SERVICE_UNAVAILABLE_MESSAGE,
     PASSWORD_RESET_SUCCESS_MESSAGE,
-    storePasswordResetToken,
 } from "../service/passwordRecoveryService.js";
 
 dotenv.config();
@@ -240,6 +237,10 @@ try {
     const db = getDB();
     const email = `${req.body?.email || ""}`.trim().toLowerCase();
 
+    logger.info("[password-recovery] request received", {
+        requestId: req.requestId,
+    });
+
     if (!email) {
         return next(
         new AppError({
@@ -261,45 +262,60 @@ try {
         );
     }
 
-    const [rows] = await db.execute(
-        `
-          SELECT user_id, user_name, email
-          FROM users
-          WHERE LOWER(email) = ?
-          LIMIT 1
-        `,
-        [email]
-    );
+    const recoveryRequest = await createPasswordRecoveryRequest(db, email);
 
-    const user = rows[0] || null;
-
-    if (user) {
-        const { plainToken, tokenHash } = createPasswordResetToken();
-        const expiresAt = createPasswordResetExpiry();
-
-        await storePasswordResetToken(db, {
-            userId: user.user_id,
-            tokenHash,
-            expiresAt,
-        });
-
-        await sendPasswordResetEmail({
-            to: user.email,
-            userName: user.user_name,
-            resetUrl: createPasswordResetUrl(plainToken),
-            expiresInMinutes: getPasswordResetExpiresMinutes(),
-        });
-
-        logger.info("password reset email sent", {
+    if (!recoveryRequest) {
+        logger.info("[password-recovery] user not found", {
             requestId: req.requestId,
-            userId: user.user_id,
         });
-    } else {
-        logger.info("password reset requested for unknown email", {
-            requestId: req.requestId,
-            email,
+
+        return res.status(200).json({
+            ok: true,
+            message: PASSWORD_RESET_PUBLIC_MESSAGE,
         });
     }
+
+    logger.info("[password-recovery] user found", {
+        requestId: req.requestId,
+        userId: recoveryRequest.user.user_id,
+    });
+
+    logger.info("[password-recovery] reset token stored", {
+        requestId: req.requestId,
+        userId: recoveryRequest.user.user_id,
+        resetTokenId: recoveryRequest.resetTokenId,
+    });
+
+    try {
+        await sendPasswordResetEmail({
+            to: recoveryRequest.user.email,
+            userName: recoveryRequest.user.user_name,
+            resetUrl: recoveryRequest.resetUrl,
+            expiresInMinutes: recoveryRequest.expiresInMinutes,
+        });
+    } catch (error) {
+        await deletePasswordResetTokenById(db, recoveryRequest.resetTokenId);
+
+        logger.error("forgot password email send failed", {
+            requestId: req.requestId,
+            userId: recoveryRequest.user.user_id,
+            error: error?.message || error?.code || null,
+        });
+
+        return next(
+        new AppError({
+            code: "FORGOT_PASSWORD_EMAIL_FAILED",
+            message: "No se pudo enviar el email de recuperacion",
+            status: 500,
+            details: error?.code || error?.message || null,
+        })
+        );
+    }
+
+    logger.info("[password-recovery] email sent", {
+        requestId: req.requestId,
+        userId: recoveryRequest.user.user_id,
+    });
 
     return res.status(200).json({
         ok: true,

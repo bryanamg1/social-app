@@ -3,10 +3,15 @@ import { jest } from "@jest/globals";
 import {
   getMailProvider,
   getMissingMailEnvVars,
+  getSmtpConfigSummary,
+  getSmtpTransportOptions,
   isMailConfigured,
   MAIL_PROVIDERS,
 } from "../src/config/mail.js";
-import { sendPasswordResetEmail } from "../src/service/emailService.js";
+import {
+  buildSmtpErrorDetails,
+  sendPasswordResetEmail,
+} from "../src/service/emailService.js";
 
 describe("email provider configuration", () => {
   const originalEnv = { ...process.env };
@@ -49,6 +54,84 @@ describe("email provider configuration", () => {
     process.env.MAIL_PROVIDER = MAIL_PROVIDERS.MAILTRAP_API;
 
     expect(getMissingMailEnvVars()).toEqual(["MAILTRAP_API_TOKEN"]);
+  });
+
+  test("builds smtp config using numeric port and boolean secure", () => {
+    process.env.MAIL_PROVIDER = MAIL_PROVIDERS.SMTP;
+    process.env.MAIL_HOST = "smtp.gmail.com";
+    process.env.MAIL_PORT = "465";
+    process.env.MAIL_SECURE = "true";
+    process.env.MAIL_USER = "socialapp.soporte@gmail.com";
+    process.env.MAIL_PASSWORD = "app-password";
+
+    expect(getMailProvider()).toBe(MAIL_PROVIDERS.SMTP);
+    expect(getSmtpConfigSummary()).toEqual(
+      expect.objectContaining({
+        provider: MAIL_PROVIDERS.SMTP,
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        requireTLS: false,
+        hasUser: true,
+        hasPassword: true,
+        fromDomain: "example.com",
+      })
+    );
+  });
+
+  test("enables requireTLS for gmail on port 587", () => {
+    process.env.MAIL_PROVIDER = MAIL_PROVIDERS.SMTP;
+    process.env.MAIL_HOST = "smtp.gmail.com";
+    process.env.MAIL_PORT = "587";
+    process.env.MAIL_SECURE = "false";
+    process.env.MAIL_USER = "socialapp.soporte@gmail.com";
+    process.env.MAIL_PASSWORD = "app-password";
+
+    expect(getSmtpTransportOptions()).toEqual(
+      expect.objectContaining({
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
+        requireTLS: true,
+        tls: {
+          servername: "smtp.gmail.com",
+        },
+      })
+    );
+  });
+
+  test("sanitizes smtp diagnostics without exposing credentials", () => {
+    process.env.MAIL_PROVIDER = MAIL_PROVIDERS.SMTP;
+    process.env.MAIL_HOST = "smtp.gmail.com";
+    process.env.MAIL_PORT = "465";
+    process.env.MAIL_SECURE = "true";
+    process.env.MAIL_USER = "socialapp.soporte@gmail.com";
+    process.env.MAIL_PASSWORD = "super-secret-app-password";
+
+    const smtpErrorDetails = buildSmtpErrorDetails({
+      code: "ESOCKET",
+      command: "CONN",
+      responseCode: 535,
+      response: "535 Invalid credentials super-secret-app-password",
+      reason: "Authentication failed super-secret-app-password",
+      message: "socket hang up super-secret-app-password",
+    });
+
+    expect(smtpErrorDetails).toEqual(
+      expect.objectContaining({
+        provider: MAIL_PROVIDERS.SMTP,
+        code: "ESOCKET",
+        command: "CONN",
+        responseCode: 535,
+        stage: "connection",
+      })
+    );
+    expect(JSON.stringify(smtpErrorDetails)).not.toContain(
+      "super-secret-app-password"
+    );
+    expect(smtpErrorDetails.response).toContain("[redacted]");
+    expect(smtpErrorDetails.reason).toContain("[redacted]");
+    expect(smtpErrorDetails.message).toContain("[redacted]");
   });
 
   test("sends password recovery email through mailtrap api", async () => {

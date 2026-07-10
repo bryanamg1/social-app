@@ -176,6 +176,30 @@ Provider opcional para local/dev:
 
 - `MAIL_PROVIDER=smtp`
 
+Configuracion recomendada para Gmail SMTP:
+
+- Opcion A: `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=465`, `MAIL_SECURE=true`
+- Opcion B: `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_SECURE=false`
+- Para Gmail en `587`, el backend habilita `requireTLS=true`
+- El transporte SMTP agrega `tls.servername` con el host configurado
+
+Diagnostico seguro para SMTP:
+
+- Log previo de envio con `host`, `port`, `secure`, `requireTLS`, `hasUser`, `hasPassword` y `fromDomain`
+- Log de error con `code`, `command`, `responseCode`, `response`, `reason`, `message` y `stage`
+- Nunca se imprimen `MAIL_PASSWORD`, App Password, el token de recuperacion ni la URL completa del reset
+
+Script opcional de verificacion local:
+
+```bash
+npm run check:mail-provider
+```
+
+Variables utiles para el script:
+
+- `TEST_MAIL_TO` para enviar un correo de prueba opcional despues de `verify()`
+- No usar este script como parte del flujo de produccion por request
+
 ---
 
 ## 🔌 Endpoints principales

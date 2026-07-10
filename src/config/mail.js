@@ -11,6 +11,7 @@ const DEFAULT_GREETING_TIMEOUT_MS = 10000;
 const DEFAULT_SOCKET_TIMEOUT_MS = 15000;
 const DEFAULT_API_TIMEOUT_MS = 15000;
 const DEFAULT_MAILTRAP_API_URL = "https://send.api.mailtrap.io/api/send";
+const GMAIL_SMTP_HOST = "smtp.gmail.com";
 
 const toBoolean = (value, fallback = false) => {
   if (typeof value !== "string") {
@@ -114,6 +115,21 @@ const getSmtpEnv = () => {
   };
 };
 
+const isGmailSmtpHost = (host) => {
+  return host.trim().toLowerCase() === GMAIL_SMTP_HOST;
+};
+
+const getSmtpRuntimeFlags = (smtpEnv) => {
+  const normalizedHost = smtpEnv.host.trim().toLowerCase();
+  const requireTLS =
+    smtpEnv.port === 587 && smtpEnv.secure === false && isGmailSmtpHost(normalizedHost);
+
+  return {
+    requireTLS,
+    tlsServername: smtpEnv.host || null,
+  };
+};
+
 const getMailtrapApiEnv = () => {
   return {
     ...getCommonMailEnv(),
@@ -166,13 +182,73 @@ export const getMailFromValue = () => {
 
 let transporter = null;
 let transporterProvider = null;
+let transporterSignature = null;
 
 export const getMailtrapApiConfig = () => {
   return getMailtrapApiEnv();
 };
 
+export const getSmtpConfig = () => {
+  return getSmtpEnv();
+};
+
+export const getSmtpTransportOptions = () => {
+  const smtpEnv = getSmtpEnv();
+  const runtimeFlags = getSmtpRuntimeFlags(smtpEnv);
+  const transportOptions = {
+    host: smtpEnv.host,
+    port: smtpEnv.port,
+    secure: smtpEnv.secure,
+    connectionTimeout: smtpEnv.connectionTimeout,
+    greetingTimeout: smtpEnv.greetingTimeout,
+    socketTimeout: smtpEnv.socketTimeout,
+    auth: {
+      user: smtpEnv.user,
+      pass: smtpEnv.password,
+    },
+  };
+
+  if (runtimeFlags.requireTLS) {
+    transportOptions.requireTLS = true;
+  }
+
+  if (runtimeFlags.tlsServername) {
+    transportOptions.tls = {
+      servername: runtimeFlags.tlsServername,
+    };
+  }
+
+  return transportOptions;
+};
+
+export const getSmtpConfigSummary = () => {
+  const smtpEnv = getSmtpEnv();
+  const runtimeFlags = getSmtpRuntimeFlags(smtpEnv);
+
+  return {
+    provider: MAIL_PROVIDERS.SMTP,
+    host: smtpEnv.host || null,
+    port: smtpEnv.port,
+    secure: smtpEnv.secure,
+    requireTLS: runtimeFlags.requireTLS,
+    tlsServername: runtimeFlags.tlsServername,
+    hasUser: Boolean(smtpEnv.user),
+    hasPassword: Boolean(smtpEnv.password),
+    fromDomain: smtpEnv.from.split("@")[1] || null,
+    connectionTimeout: smtpEnv.connectionTimeout,
+    greetingTimeout: smtpEnv.greetingTimeout,
+    socketTimeout: smtpEnv.socketTimeout,
+  };
+};
+
 export const getMailSenderIdentity = () => {
   return getCommonMailEnv();
+};
+
+export const resetMailTransporter = () => {
+  transporter = null;
+  transporterProvider = null;
+  transporterSignature = null;
 };
 
 export const getMailTransporter = () => {
@@ -180,25 +256,20 @@ export const getMailTransporter = () => {
     return null;
   }
 
-  if (transporter && transporterProvider === MAIL_PROVIDERS.SMTP) {
+  const transportOptions = getSmtpTransportOptions();
+  const nextSignature = JSON.stringify(transportOptions);
+
+  if (
+    transporter &&
+    transporterProvider === MAIL_PROVIDERS.SMTP &&
+    transporterSignature === nextSignature
+  ) {
     return transporter;
   }
 
-  const mailEnv = getSmtpEnv();
-
-  transporter = nodemailer.createTransport({
-    host: mailEnv.host,
-    port: mailEnv.port,
-    secure: mailEnv.secure,
-    connectionTimeout: mailEnv.connectionTimeout,
-    greetingTimeout: mailEnv.greetingTimeout,
-    socketTimeout: mailEnv.socketTimeout,
-    auth: {
-      user: mailEnv.user,
-      pass: mailEnv.password,
-    },
-  });
+  transporter = nodemailer.createTransport(transportOptions);
   transporterProvider = MAIL_PROVIDERS.SMTP;
+  transporterSignature = nextSignature;
 
   return transporter;
 };

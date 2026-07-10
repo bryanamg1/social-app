@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon src/server.js",
     "start": "cross-env NODE_ENV=production node src/server.js",
+    "check:mail-provider": "node scripts/check-mail-provider.js",
     "test": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "jest npm run test -- --watch",
     "test:coverage": "jest --coverage"

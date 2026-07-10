@@ -141,6 +141,9 @@ Endpoints agregados:
 
 Variables de entorno requeridas:
 
+- `MAIL_PROVIDER`
+- `MAILTRAP_API_TOKEN`
+- `MAILTRAP_API_URL`
 - `MAIL_HOST`
 - `MAIL_PORT`
 - `MAIL_SECURE`
@@ -154,6 +157,15 @@ Variables de entorno requeridas:
 SQL manual requerido:
 
 Aplicar el script versionado en `password-reset-tokens.sql` antes de probar el flujo completo.
+
+Provider recomendado en produccion:
+
+- `MAIL_PROVIDER=mailtrap_api`
+- `MAILTRAP_API_URL=https://send.api.mailtrap.io/api/send`
+
+Provider opcional para local/dev:
+
+- `MAIL_PROVIDER=smtp`
 
 ---
 
@@ -299,6 +311,19 @@ MYSQL_DATABASE=
 FRONTEND_URL=
 CLIENT_URL=
 CORS_ORIGIN=
+
+MAIL_PROVIDER=
+MAILTRAP_API_TOKEN=
+MAILTRAP_API_URL=
+MAIL_API_TIMEOUT_MS=
+MAIL_HOST=
+MAIL_PORT=
+MAIL_SECURE=
+MAIL_USER=
+MAIL_PASSWORD=
+MAIL_FROM=
+MAIL_FROM_NAME=
+PASSWORD_RESET_TOKEN_EXPIRES_MINUTES=
 
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=

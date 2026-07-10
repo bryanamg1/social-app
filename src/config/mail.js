@@ -1,9 +1,16 @@
 import nodemailer from "nodemailer";
 
+export const MAIL_PROVIDERS = {
+  SMTP: "smtp",
+  MAILTRAP_API: "mailtrap_api",
+};
+
 const DEFAULT_MAIL_PORT = 587;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 10000;
 const DEFAULT_GREETING_TIMEOUT_MS = 10000;
 const DEFAULT_SOCKET_TIMEOUT_MS = 15000;
+const DEFAULT_API_TIMEOUT_MS = 15000;
+const DEFAULT_MAILTRAP_API_URL = "https://send.api.mailtrap.io/api/send";
 
 const toBoolean = (value, fallback = false) => {
   if (typeof value !== "string") {
@@ -33,7 +40,52 @@ const toTimeout = (value, fallback) => {
   return parsedTimeout;
 };
 
-const getMailEnv = () => {
+const getExplicitProvider = () => {
+  const provider = process.env.MAIL_PROVIDER?.trim().toLowerCase();
+
+  if (provider === MAIL_PROVIDERS.MAILTRAP_API) {
+    return MAIL_PROVIDERS.MAILTRAP_API;
+  }
+
+  if (provider === MAIL_PROVIDERS.SMTP) {
+    return MAIL_PROVIDERS.SMTP;
+  }
+
+  return null;
+};
+
+export const getMailProvider = () => {
+  const explicitProvider = getExplicitProvider();
+
+  if (explicitProvider) {
+    return explicitProvider;
+  }
+
+  const hasSmtpCredentials = Boolean(
+    process.env.MAIL_HOST?.trim() &&
+      process.env.MAIL_USER?.trim() &&
+      process.env.MAIL_PASSWORD
+  );
+
+  if (hasSmtpCredentials) {
+    return MAIL_PROVIDERS.SMTP;
+  }
+
+  if (process.env.MAILTRAP_API_TOKEN?.trim()) {
+    return MAIL_PROVIDERS.MAILTRAP_API;
+  }
+
+  return MAIL_PROVIDERS.SMTP;
+};
+
+const getCommonMailEnv = () => {
+  return {
+    from: process.env.MAIL_FROM?.trim() || "",
+    fromName: process.env.MAIL_FROM_NAME?.trim() || "",
+  };
+};
+
+const getSmtpEnv = () => {
   const port = toPort(process.env.MAIL_PORT);
   const secure =
     typeof process.env.MAIL_SECURE === "string"
@@ -41,13 +93,12 @@ const getMailEnv = () => {
       : port === 465;
 
   return {
+    ...getCommonMailEnv(),
     host: process.env.MAIL_HOST?.trim() || "",
     port,
     secure,
     user: process.env.MAIL_USER?.trim() || "",
     password: process.env.MAIL_PASSWORD || "",
-    from: process.env.MAIL_FROM?.trim() || "",
-    fromName: process.env.MAIL_FROM_NAME?.trim() || "",
     connectionTimeout: toTimeout(
       process.env.MAIL_CONNECTION_TIMEOUT_MS,
       DEFAULT_CONNECTION_TIMEOUT_MS
@@ -63,8 +114,33 @@ const getMailEnv = () => {
   };
 };
 
+const getMailtrapApiEnv = () => {
+  return {
+    ...getCommonMailEnv(),
+    apiToken: process.env.MAILTRAP_API_TOKEN?.trim() || "",
+    apiUrl:
+      process.env.MAILTRAP_API_URL?.trim() || DEFAULT_MAILTRAP_API_URL,
+    timeoutMs: toTimeout(
+      process.env.MAIL_API_TIMEOUT_MS,
+      DEFAULT_API_TIMEOUT_MS
+    ),
+  };
+};
+
 export const getMissingMailEnvVars = () => {
-  const mailEnv = getMailEnv();
+  const provider = getMailProvider();
+
+  if (provider === MAIL_PROVIDERS.MAILTRAP_API) {
+    const mailEnv = getMailtrapApiEnv();
+
+    return [
+      !mailEnv.apiToken && "MAILTRAP_API_TOKEN",
+      !mailEnv.apiUrl && "MAILTRAP_API_URL",
+      !mailEnv.from && "MAIL_FROM",
+    ].filter(Boolean);
+  }
+
+  const mailEnv = getSmtpEnv();
 
   return [
     !mailEnv.host && "MAIL_HOST",
@@ -79,7 +155,7 @@ export const isMailConfigured = () => {
 };
 
 export const getMailFromValue = () => {
-  const mailEnv = getMailEnv();
+  const mailEnv = getCommonMailEnv();
 
   if (!mailEnv.fromName) {
     return mailEnv.from;
@@ -89,17 +165,26 @@ export const getMailFromValue = () => {
 };
 
 let transporter = null;
+let transporterProvider = null;
+
+export const getMailtrapApiConfig = () => {
+  return getMailtrapApiEnv();
+};
+
+export const getMailSenderIdentity = () => {
+  return getCommonMailEnv();
+};
 
 export const getMailTransporter = () => {
-  if (!isMailConfigured()) {
+  if (getMailProvider() !== MAIL_PROVIDERS.SMTP || !isMailConfigured()) {
     return null;
   }
 
-  if (transporter) {
+  if (transporter && transporterProvider === MAIL_PROVIDERS.SMTP) {
     return transporter;
   }
 
-  const mailEnv = getMailEnv();
+  const mailEnv = getSmtpEnv();
 
   transporter = nodemailer.createTransport({
     host: mailEnv.host,
@@ -113,6 +198,7 @@ export const getMailTransporter = () => {
       pass: mailEnv.password,
     },
   });
+  transporterProvider = MAIL_PROVIDERS.SMTP;
 
   return transporter;
 };

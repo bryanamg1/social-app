@@ -1,8 +1,12 @@
 import {
   getMailFromValue,
+  getMailSenderIdentity,
+  getMailProvider,
   getMailTransporter,
+  getMailtrapApiConfig,
   getMissingMailEnvVars,
   isMailConfigured,
+  MAIL_PROVIDERS,
 } from "../config/mail.js";
 
 const APP_NAME = "Social App";
@@ -10,9 +14,7 @@ const PASSWORD_RECOVERY_EMAIL_TIMEOUT_MESSAGE =
   "PASSWORD_RECOVERY_EMAIL_TIMEOUT";
 
 const buildPasswordResetText = ({ userName, resetUrl, expiresInMinutes }) => {
-  const greeting = userName
-    ? `Hola ${userName},`
-    : "Hola,";
+  const greeting = userName ? `Hola ${userName},` : "Hola,";
 
   return [
     greeting,
@@ -26,9 +28,7 @@ const buildPasswordResetText = ({ userName, resetUrl, expiresInMinutes }) => {
 };
 
 const buildPasswordResetHtml = ({ userName, resetUrl, expiresInMinutes }) => {
-  const greeting = userName
-    ? `Hola ${userName},`
-    : "Hola,";
+  const greeting = userName ? `Hola ${userName},` : "Hola,";
 
   return `
     <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
@@ -49,19 +49,52 @@ const buildPasswordResetHtml = ({ userName, resetUrl, expiresInMinutes }) => {
   `;
 };
 
-export const sendPasswordResetEmail = async ({
+const createTimeoutError = () => {
+  const timeoutError = new Error(PASSWORD_RECOVERY_EMAIL_TIMEOUT_MESSAGE);
+  timeoutError.code = "ETIMEDOUT";
+  return timeoutError;
+};
+
+const buildPasswordResetPayload = ({
   to,
   userName,
   resetUrl,
   expiresInMinutes,
 }) => {
-  if (!isMailConfigured()) {
-    return {
-      delivered: false,
-      missingEnvVars: getMissingMailEnvVars(),
-    };
-  }
+  const sender = getMailSenderIdentity();
 
+  return {
+    from: {
+      email: sender.from,
+      name: sender.fromName || undefined,
+    },
+    to: [
+      {
+        email: to,
+        name: userName || undefined,
+      },
+    ],
+    subject: `${APP_NAME}: recupera tu contrasena`,
+    text: buildPasswordResetText({
+      userName,
+      resetUrl,
+      expiresInMinutes,
+    }),
+    html: buildPasswordResetHtml({
+      userName,
+      resetUrl,
+      expiresInMinutes,
+    }),
+    category: "password-recovery",
+  };
+};
+
+const sendPasswordResetEmailBySmtp = async ({
+  to,
+  userName,
+  resetUrl,
+  expiresInMinutes,
+}) => {
   const transporter = getMailTransporter();
 
   try {
@@ -85,12 +118,91 @@ export const sendPasswordResetEmail = async ({
     const rawMessage = `${error?.message || ""}`.toLowerCase();
 
     if (errorCode === "ETIMEDOUT" || rawMessage.includes("timeout")) {
-      const timeoutError = new Error(PASSWORD_RECOVERY_EMAIL_TIMEOUT_MESSAGE);
-      timeoutError.code = "ETIMEDOUT";
-      throw timeoutError;
+      throw createTimeoutError();
     }
 
     throw error;
+  }
+};
+
+const sendPasswordResetEmailByMailtrapApi = async ({
+  to,
+  userName,
+  resetUrl,
+  expiresInMinutes,
+}) => {
+  const { apiToken, apiUrl, timeoutMs } = getMailtrapApiConfig();
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    abortController.abort(createTimeoutError());
+  }, timeoutMs);
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        buildPasswordResetPayload({
+          to,
+          userName,
+          resetUrl,
+          expiresInMinutes,
+        })
+      ),
+      signal: abortController.signal,
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      const providerError = new Error("MAIL_PROVIDER_REQUEST_FAILED");
+      providerError.code = "MAIL_PROVIDER_REQUEST_FAILED";
+      providerError.status = response.status;
+      providerError.details = errorBody.slice(0, 300);
+      throw providerError;
+    }
+  } catch (error) {
+    if (error?.name === "AbortError" || error?.code === "ETIMEDOUT") {
+      throw createTimeoutError();
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export const sendPasswordResetEmail = async ({
+  to,
+  userName,
+  resetUrl,
+  expiresInMinutes,
+}) => {
+  if (!isMailConfigured()) {
+    return {
+      delivered: false,
+      missingEnvVars: getMissingMailEnvVars(),
+    };
+  }
+
+  const provider = getMailProvider();
+
+  if (provider === MAIL_PROVIDERS.MAILTRAP_API) {
+    await sendPasswordResetEmailByMailtrapApi({
+      to,
+      userName,
+      resetUrl,
+      expiresInMinutes,
+    });
+  } else {
+    await sendPasswordResetEmailBySmtp({
+      to,
+      userName,
+      resetUrl,
+      expiresInMinutes,
+    });
   }
 
   return {

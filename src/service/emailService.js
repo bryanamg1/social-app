@@ -12,6 +12,8 @@ import {
 const APP_NAME = "Social App";
 const PASSWORD_RECOVERY_EMAIL_TIMEOUT_MESSAGE =
   "PASSWORD_RECOVERY_EMAIL_TIMEOUT";
+const MAILTRAP_PROVIDER_ERROR_CODE = "MAIL_PROVIDER_REQUEST_FAILED";
+const MAX_MAILTRAP_RESPONSE_LENGTH = 500;
 
 const buildPasswordResetText = ({ userName, resetUrl, expiresInMinutes }) => {
   const greeting = userName ? `Hola ${userName},` : "Hola,";
@@ -55,25 +57,90 @@ const createTimeoutError = () => {
   return timeoutError;
 };
 
-const buildPasswordResetPayload = ({
+const redactSensitiveValue = (value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  if (value.length <= MAX_MAILTRAP_RESPONSE_LENGTH) {
+    return value;
+  }
+
+  return `${value.slice(0, MAX_MAILTRAP_RESPONSE_LENGTH)}...`;
+};
+
+const sanitizeMailtrapResponse = (value, depth = 0) => {
+  if (depth > 3) {
+    return "[truncated]";
+  }
+
+  if (typeof value === "string") {
+    return redactSensitiveValue(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 10).map((entry) => sanitizeMailtrapResponse(entry, depth + 1));
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.entries(value).reduce((sanitized, [key, entryValue]) => {
+    const normalizedKey = key.toLowerCase();
+
+    if (
+      normalizedKey.includes("token") ||
+      normalizedKey.includes("password") ||
+      normalizedKey.includes("authorization")
+    ) {
+      sanitized[key] = "[redacted]";
+      return sanitized;
+    }
+
+    sanitized[key] = sanitizeMailtrapResponse(entryValue, depth + 1);
+    return sanitized;
+  }, {});
+};
+
+const parseMailtrapResponseBody = (rawBody) => {
+  if (!rawBody) {
+    return null;
+  }
+
+  try {
+    return sanitizeMailtrapResponse(JSON.parse(rawBody));
+  } catch {
+    return sanitizeMailtrapResponse(rawBody);
+  }
+};
+
+const buildMailtrapRequestPayload = ({
   to,
   userName,
   resetUrl,
   expiresInMinutes,
 }) => {
   const sender = getMailSenderIdentity();
+  const recipient = {
+    email: to,
+  };
+
+  if (userName) {
+    recipient.name = userName;
+  }
+
+  const from = {
+    email: sender.from,
+  };
+
+  if (sender.fromName) {
+    from.name = sender.fromName;
+  }
 
   return {
-    from: {
-      email: sender.from,
-      name: sender.fromName || undefined,
-    },
-    to: [
-      {
-        email: to,
-        name: userName || undefined,
-      },
-    ],
+    from,
+    to: [recipient],
     subject: `${APP_NAME}: recupera tu contrasena`,
     text: buildPasswordResetText({
       userName,
@@ -85,8 +152,42 @@ const buildPasswordResetPayload = ({
       resetUrl,
       expiresInMinutes,
     }),
-    category: "password-recovery",
   };
+};
+
+const buildMailtrapProviderError = ({
+  status,
+  statusText,
+  response,
+}) => {
+  const providerError = new Error(MAILTRAP_PROVIDER_ERROR_CODE);
+  providerError.code = MAILTRAP_PROVIDER_ERROR_CODE;
+  providerError.provider = MAIL_PROVIDERS.MAILTRAP_API;
+  providerError.status = status;
+  providerError.statusText = statusText || null;
+  providerError.mailtrapResponse = response;
+  providerError.details = {
+    provider: MAIL_PROVIDERS.MAILTRAP_API,
+    status,
+    statusText: statusText || null,
+    response,
+  };
+
+  return providerError;
+};
+
+const buildPasswordResetPayload = ({
+  to,
+  userName,
+  resetUrl,
+  expiresInMinutes,
+}) => {
+  return buildMailtrapRequestPayload({
+    to,
+    userName,
+    resetUrl,
+    expiresInMinutes,
+  });
 };
 
 const sendPasswordResetEmailBySmtp = async ({
@@ -132,40 +233,65 @@ const sendPasswordResetEmailByMailtrapApi = async ({
   expiresInMinutes,
 }) => {
   const { apiToken, apiUrl, timeoutMs } = getMailtrapApiConfig();
+  const sender = getMailSenderIdentity();
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => {
     abortController.abort(createTimeoutError());
   }, timeoutMs);
 
   try {
+    console.info("[mail-provider] sending password recovery email", {
+      provider: MAIL_PROVIDERS.MAILTRAP_API,
+      hasApiToken: Boolean(apiToken),
+      hasApiUrl: Boolean(apiUrl),
+      hasFrom: Boolean(sender.from),
+      fromDomain: sender.from?.split("@")[1] || null,
+      hasRecipient: Boolean(to),
+    });
+
+    const payload = buildPasswordResetPayload({
+      to,
+      userName,
+      resetUrl,
+      expiresInMinutes,
+    });
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(
-        buildPasswordResetPayload({
-          to,
-          userName,
-          resetUrl,
-          expiresInMinutes,
-        })
-      ),
+      body: JSON.stringify(payload),
       signal: abortController.signal,
     });
 
     if (!response.ok) {
-      const errorBody = await response.text();
-      const providerError = new Error("MAIL_PROVIDER_REQUEST_FAILED");
-      providerError.code = "MAIL_PROVIDER_REQUEST_FAILED";
-      providerError.status = response.status;
-      providerError.details = errorBody.slice(0, 300);
-      throw providerError;
+      const responseBody = parseMailtrapResponseBody(await response.text());
+
+      console.error("[mail-provider] Mailtrap API request failed", {
+        provider: MAIL_PROVIDERS.MAILTRAP_API,
+        status: response.status,
+        statusText: response.statusText,
+        response: responseBody,
+      });
+
+      throw buildMailtrapProviderError({
+        status: response.status,
+        statusText: response.statusText,
+        response: responseBody,
+      });
     }
   } catch (error) {
     if (error?.name === "AbortError" || error?.code === "ETIMEDOUT") {
       throw createTimeoutError();
+    }
+
+    if (error?.code !== MAILTRAP_PROVIDER_ERROR_CODE) {
+      console.error("[mail-provider] Mailtrap API request failed before response", {
+        provider: MAIL_PROVIDERS.MAILTRAP_API,
+        code: error?.code || null,
+        message: error?.message || null,
+      });
     }
 
     throw error;

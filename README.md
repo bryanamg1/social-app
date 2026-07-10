@@ -144,15 +144,18 @@ Variables de entorno requeridas:
 - `MAIL_PROVIDER`
 - `MAILTRAP_API_TOKEN`
 - `MAILTRAP_API_URL`
+- `MAIL_FROM`
+- `MAIL_FROM_NAME`
+- `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES`
+- `FRONTEND_URL`
+
+Variables requeridas solo para SMTP:
+
 - `MAIL_HOST`
 - `MAIL_PORT`
 - `MAIL_SECURE`
 - `MAIL_USER`
 - `MAIL_PASSWORD`
-- `MAIL_FROM`
-- `MAIL_FROM_NAME`
-- `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES`
-- `FRONTEND_URL`
 
 SQL manual requerido:
 
@@ -162,6 +165,12 @@ Provider recomendado en produccion:
 
 - `MAIL_PROVIDER=mailtrap_api`
 - `MAILTRAP_API_URL=https://send.api.mailtrap.io/api/send`
+
+Diagnostico seguro en errores de Mailtrap API:
+
+- Log previo de envio con banderas `hasApiToken`, `hasApiUrl`, `hasFrom`, `fromDomain` y `hasRecipient`
+- Log de error con `status`, `statusText` y respuesta sanitizada del provider
+- Nunca se imprimen `MAILTRAP_API_TOKEN`, `MAIL_PASSWORD`, el token de recuperacion ni la URL completa del reset
 
 Provider opcional para local/dev:
 

@@ -300,6 +300,7 @@ try {
             requestId: req.requestId,
             userId: recoveryRequest.user.user_id,
             error: error?.message || error?.code || null,
+            details: error?.details || null,
         });
 
         return next(
@@ -307,7 +308,7 @@ try {
             code: "FORGOT_PASSWORD_EMAIL_FAILED",
             message: "No se pudo enviar el email de recuperacion",
             status: 500,
-            details: error?.code || error?.message || null,
+            details: error?.details || error?.code || error?.message || null,
         })
         );
     }

@@ -151,4 +151,29 @@ export const rateLimitLogin = DEV_BYPASS
         }
     });
 
+export const rateLimitPasswordRecovery = DEV_BYPASS
+    ? (req, res, next) => next()
+    : buildRateLimit({
+        windowMs: AUTH_WINDOW_MS,
+        max: AUTH_MAX,
+        code: "FORGOT_PASSWORD_RATE_LIMIT_EXCEEDED",
+        message: "Demasiados intentos de recuperacion. Intenta nuevamente mas tarde.",
+        prefix: "forgot-password",
+        keyGenerator: (req) => {
+            const email = req.body?.email?.toLowerCase() || "unknown";
+            return `forgot_${req.ip}_${email}`;
+        }
+    });
+
+export const rateLimitPasswordReset = DEV_BYPASS
+    ? (req, res, next) => next()
+    : buildRateLimit({
+        windowMs: AUTH_WINDOW_MS,
+        max: AUTH_MAX,
+        code: "RESET_PASSWORD_RATE_LIMIT_EXCEEDED",
+        message: "Demasiados intentos de restablecimiento. Intenta nuevamente mas tarde.",
+        prefix: "reset-password",
+        keyGenerator: (req) => req.ip
+    });
+
 

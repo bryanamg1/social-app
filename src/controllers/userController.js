@@ -6,9 +6,25 @@ import { AppError } from "../utils/utils.js";
 import dotenv from "dotenv";    
 import {logger} from "../config/logger.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
+import { getMissingMailEnvVars, isMailConfigured } from "../config/mail.js";
+import { sendPasswordResetEmail } from "../service/emailService.js";
+import {
+    clearUserRefreshTokens,
+    createPasswordRecoveryRequest,
+    deletePasswordResetTokenById,
+    findPasswordResetRecordByToken,
+    invalidateActivePasswordResetTokens,
+    isPasswordResetRecordExpired,
+    markPasswordResetTokenUsed,
+    PASSWORD_RESET_INVALID_TOKEN_MESSAGE,
+    PASSWORD_RESET_PUBLIC_MESSAGE,
+    PASSWORD_RESET_SERVICE_UNAVAILABLE_MESSAGE,
+    PASSWORD_RESET_SUCCESS_MESSAGE,
+} from "../service/passwordRecoveryService.js";
 
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET;
+const PASSWORD_MIN_LENGTH = 6;
 
 export const profile = async (req,res)=>{
     try {
@@ -214,6 +230,207 @@ try {
         })
     );
     }
+};
+
+export const forgotPassword = async (req, res, next) => {
+try {
+    const db = getDB();
+    const email = `${req.body?.email || ""}`.trim().toLowerCase();
+
+    logger.info("[password-recovery] request received", {
+        requestId: req.requestId,
+    });
+
+    if (!email) {
+        return next(
+        new AppError({
+            code: "FORGOT_PASSWORD_EMAIL_REQUIRED",
+            message: "El email es obligatorio",
+            status: 400,
+        })
+        );
+    }
+
+    if (!isMailConfigured()) {
+        return next(
+        new AppError({
+            code: "MAIL_NOT_CONFIGURED",
+            message: PASSWORD_RESET_SERVICE_UNAVAILABLE_MESSAGE,
+            status: 503,
+            details: getMissingMailEnvVars(),
+        })
+        );
+    }
+
+    const recoveryRequest = await createPasswordRecoveryRequest(db, email);
+
+    if (!recoveryRequest) {
+        logger.info("[password-recovery] user not found", {
+            requestId: req.requestId,
+        });
+
+        return res.status(200).json({
+            ok: true,
+            message: PASSWORD_RESET_PUBLIC_MESSAGE,
+        });
+    }
+
+    logger.info("[password-recovery] user found", {
+        requestId: req.requestId,
+        userId: recoveryRequest.user.user_id,
+    });
+
+    logger.info("[password-recovery] reset token stored", {
+        requestId: req.requestId,
+        userId: recoveryRequest.user.user_id,
+        resetTokenId: recoveryRequest.resetTokenId,
+    });
+
+    try {
+        await sendPasswordResetEmail({
+            to: recoveryRequest.user.email,
+            userName: recoveryRequest.user.user_name,
+            resetUrl: recoveryRequest.resetUrl,
+            expiresInMinutes: recoveryRequest.expiresInMinutes,
+        });
+    } catch (error) {
+        await deletePasswordResetTokenById(db, recoveryRequest.resetTokenId);
+
+        logger.error("forgot password email send failed", {
+            requestId: req.requestId,
+            userId: recoveryRequest.user.user_id,
+            error: error?.message || error?.code || null,
+        });
+
+        return next(
+        new AppError({
+            code: "FORGOT_PASSWORD_EMAIL_FAILED",
+            message: "No se pudo enviar el email de recuperacion",
+            status: 500,
+            details: error?.code || error?.message || null,
+        })
+        );
+    }
+
+    logger.info("[password-recovery] email sent", {
+        requestId: req.requestId,
+        userId: recoveryRequest.user.user_id,
+    });
+
+    return res.status(200).json({
+        ok: true,
+        message: PASSWORD_RESET_PUBLIC_MESSAGE,
+    });
+} catch (error) {
+    logger.error("forgot password error", {
+        email: req.body?.email || null,
+        error: error?.message || error?.code || null,
+    });
+
+    return next(
+        new AppError({
+        code: "FORGOT_PASSWORD_FAILED",
+        message: "No se pudo procesar la solicitud de recuperacion",
+        status: 500,
+        details: error?.sqlMessage || error?.code || error?.message || null,
+        })
+    );
+}
+};
+
+export const resetPassword = async (req, res, next) => {
+try {
+    const db = getDB();
+    const token = `${req.body?.token || ""}`.trim();
+    const password = `${req.body?.password || ""}`;
+    const confirmPassword = `${req.body?.confirmPassword || ""}`;
+
+    if (!token) {
+        return next(
+        new AppError({
+            code: "RESET_PASSWORD_TOKEN_REQUIRED",
+            message: "El token de recuperacion es obligatorio",
+            status: 400,
+        })
+        );
+    }
+
+    if (!password) {
+        return next(
+        new AppError({
+            code: "RESET_PASSWORD_REQUIRED",
+            message: "La contrasena es obligatoria",
+            status: 400,
+        })
+        );
+    }
+
+    if (password.length < PASSWORD_MIN_LENGTH) {
+        return next(
+        new AppError({
+            code: "RESET_PASSWORD_TOO_SHORT",
+            message: `La contrasena debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres`,
+            status: 400,
+        })
+        );
+    }
+
+    if (password !== confirmPassword) {
+        return next(
+        new AppError({
+            code: "RESET_PASSWORD_MISMATCH",
+            message: "Las contrasenas no coinciden",
+            status: 400,
+        })
+        );
+    }
+
+    const resetRecord = await findPasswordResetRecordByToken(db, token);
+
+    if (isPasswordResetRecordExpired(resetRecord)) {
+        return next(
+        new AppError({
+            code: "INVALID_OR_EXPIRED_RESET_TOKEN",
+            message: PASSWORD_RESET_INVALID_TOKEN_MESSAGE,
+            status: 400,
+        })
+        );
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await db.execute(
+        "UPDATE users SET password = ? WHERE user_id = ?",
+        [hashedPassword, resetRecord.user_id]
+    );
+
+    await markPasswordResetTokenUsed(db, resetRecord.id);
+    await invalidateActivePasswordResetTokens(db, resetRecord.user_id);
+    await clearUserRefreshTokens(db, resetRecord.user_id);
+
+    logger.info("password reset completed", {
+        requestId: req.requestId,
+        userId: resetRecord.user_id,
+    });
+
+    return res.status(200).json({
+        ok: true,
+        message: PASSWORD_RESET_SUCCESS_MESSAGE,
+    });
+} catch (error) {
+    logger.error("reset password error", {
+        error: error?.message || error?.code || null,
+    });
+
+    return next(
+        new AppError({
+        code: "RESET_PASSWORD_FAILED",
+        message: "No se pudo actualizar la contrasena",
+        status: 500,
+        details: error?.sqlMessage || error?.code || error?.message || null,
+        })
+    );
+}
 };
 
 export const updateProfile = async (req,res,next) =>{

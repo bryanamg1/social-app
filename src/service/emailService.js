@@ -6,6 +6,8 @@ import {
 } from "../config/mail.js";
 
 const APP_NAME = "Social App";
+const PASSWORD_RECOVERY_EMAIL_TIMEOUT_MESSAGE =
+  "PASSWORD_RECOVERY_EMAIL_TIMEOUT";
 
 const buildPasswordResetText = ({ userName, resetUrl, expiresInMinutes }) => {
   const greeting = userName
@@ -62,21 +64,34 @@ export const sendPasswordResetEmail = async ({
 
   const transporter = getMailTransporter();
 
-  await transporter.sendMail({
-    from: getMailFromValue(),
-    to,
-    subject: `${APP_NAME}: recupera tu contrasena`,
-    text: buildPasswordResetText({
-      userName,
-      resetUrl,
-      expiresInMinutes,
-    }),
-    html: buildPasswordResetHtml({
-      userName,
-      resetUrl,
-      expiresInMinutes,
-    }),
-  });
+  try {
+    await transporter.sendMail({
+      from: getMailFromValue(),
+      to,
+      subject: `${APP_NAME}: recupera tu contrasena`,
+      text: buildPasswordResetText({
+        userName,
+        resetUrl,
+        expiresInMinutes,
+      }),
+      html: buildPasswordResetHtml({
+        userName,
+        resetUrl,
+        expiresInMinutes,
+      }),
+    });
+  } catch (error) {
+    const errorCode = error?.code || error?.responseCode || null;
+    const rawMessage = `${error?.message || ""}`.toLowerCase();
+
+    if (errorCode === "ETIMEDOUT" || rawMessage.includes("timeout")) {
+      const timeoutError = new Error(PASSWORD_RECOVERY_EMAIL_TIMEOUT_MESSAGE);
+      timeoutError.code = "ETIMEDOUT";
+      throw timeoutError;
+    }
+
+    throw error;
+  }
 
   return {
     delivered: true,

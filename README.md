@@ -144,6 +144,10 @@ Variables de entorno requeridas:
 - `MAIL_PROVIDER`
 - `MAILTRAP_API_TOKEN`
 - `MAILTRAP_API_URL`
+- `GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET`
+- `GMAIL_REFRESH_TOKEN`
+- `GMAIL_USER`
 - `MAIL_FROM`
 - `MAIL_FROM_NAME`
 - `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES`
@@ -163,8 +167,22 @@ Aplicar el script versionado en `password-reset-tokens.sql` antes de probar el f
 
 Provider recomendado en produccion:
 
-- `MAIL_PROVIDER=mailtrap_api`
-- `MAILTRAP_API_URL=https://send.api.mailtrap.io/api/send`
+- `MAIL_PROVIDER=gmail_api`
+
+Variables requeridas para Gmail API:
+
+- `GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET`
+- `GMAIL_REFRESH_TOKEN`
+- `GMAIL_USER`
+- `MAIL_FROM`
+- `MAIL_FROM_NAME`
+
+Diagnostico operativo:
+
+- SMTP con Gmail puede fallar en Railway por conectividad saliente (`ETIMEDOUT` en etapa `CONN`)
+- Para este proyecto, `gmail_api` es la opcion recomendada en produccion cuando no hay dominio propio
+- `mailtrap_api` sigue disponible como provider HTTP alternativo
 
 Diagnostico seguro en errores de Mailtrap API:
 
@@ -175,6 +193,7 @@ Diagnostico seguro en errores de Mailtrap API:
 Provider opcional para local/dev:
 
 - `MAIL_PROVIDER=smtp`
+- `MAIL_PROVIDER=mailtrap_api`
 
 Configuracion recomendada para Gmail SMTP:
 
@@ -199,6 +218,23 @@ Variables utiles para el script:
 
 - `TEST_MAIL_TO` para enviar un correo de prueba opcional despues de `verify()`
 - No usar este script como parte del flujo de produccion por request
+
+Provider Gmail API HTTP:
+
+- Token endpoint: `https://oauth2.googleapis.com/token`
+- Send endpoint: `https://gmail.googleapis.com/gmail/v1/users/me/messages/send`
+- El backend construye el email como MIME `raw` codificado en base64url
+- Se usa `refresh_token` para obtener `access_token` en cada envio
+- Nunca se imprimen `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `access_token`, el token de recuperacion ni la URL completa del reset
+
+Configuracion manual de Gmail API:
+
+1. Crear un proyecto OAuth en Google Cloud
+2. Habilitar Gmail API
+3. Obtener `GMAIL_CLIENT_ID` y `GMAIL_CLIENT_SECRET`
+4. Autorizar el scope de envio de Gmail para la cuenta soporte
+5. Obtener y guardar `GMAIL_REFRESH_TOKEN`
+6. Configurar Railway con `MAIL_PROVIDER=gmail_api` y las variables anteriores
 
 ---
 

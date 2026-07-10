@@ -1,4 +1,6 @@
 import {
+  getGmailApiConfig,
+  getGmailApiConfigSummary,
   getMailFromValue,
   getMailSenderIdentity,
   getMailProvider,
@@ -16,6 +18,9 @@ const PASSWORD_RECOVERY_EMAIL_TIMEOUT_MESSAGE =
 const MAILTRAP_PROVIDER_ERROR_CODE = "MAIL_PROVIDER_REQUEST_FAILED";
 const SMTP_PROVIDER_ERROR_CODE = "MAIL_PROVIDER_SMTP_FAILED";
 const MAX_MAILTRAP_RESPONSE_LENGTH = 500;
+const GMAIL_ACCESS_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GMAIL_SEND_MESSAGE_URL =
+  "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
 
 const buildPasswordResetText = ({ userName, resetUrl, expiresInMinutes }) => {
   const greeting = userName ? `Hola ${userName},` : "Hola,";
@@ -64,11 +69,20 @@ const redactSensitiveValue = (value) => {
     return value;
   }
 
-  const mailPassword = process.env.MAIL_PASSWORD;
-  const sanitizedValue =
-    mailPassword && value.includes(mailPassword)
-      ? value.replaceAll(mailPassword, "[redacted]")
-      : value;
+  const secretValues = [
+    process.env.MAIL_PASSWORD,
+    process.env.GMAIL_CLIENT_SECRET,
+    process.env.GMAIL_REFRESH_TOKEN,
+    process.env.GMAIL_CLIENT_ID,
+  ].filter(Boolean);
+
+  const sanitizedValue = secretValues.reduce((currentValue, secretValue) => {
+    if (!currentValue.includes(secretValue)) {
+      return currentValue;
+    }
+
+    return currentValue.replaceAll(secretValue, "[redacted]");
+  }, value);
 
   if (sanitizedValue.length <= MAX_MAILTRAP_RESPONSE_LENGTH) {
     return sanitizedValue;
@@ -77,7 +91,7 @@ const redactSensitiveValue = (value) => {
   return `${sanitizedValue.slice(0, MAX_MAILTRAP_RESPONSE_LENGTH)}...`;
 };
 
-const sanitizeMailtrapResponse = (value, depth = 0) => {
+const sanitizeProviderResponse = (value, depth = 0) => {
   if (depth > 3) {
     return "[truncated]";
   }
@@ -87,7 +101,9 @@ const sanitizeMailtrapResponse = (value, depth = 0) => {
   }
 
   if (Array.isArray(value)) {
-    return value.slice(0, 10).map((entry) => sanitizeMailtrapResponse(entry, depth + 1));
+    return value
+      .slice(0, 10)
+      .map((entry) => sanitizeProviderResponse(entry, depth + 1));
   }
 
   if (!value || typeof value !== "object") {
@@ -106,20 +122,20 @@ const sanitizeMailtrapResponse = (value, depth = 0) => {
       return sanitized;
     }
 
-    sanitized[key] = sanitizeMailtrapResponse(entryValue, depth + 1);
+    sanitized[key] = sanitizeProviderResponse(entryValue, depth + 1);
     return sanitized;
   }, {});
 };
 
-const parseMailtrapResponseBody = (rawBody) => {
+const parseProviderResponseBody = (rawBody) => {
   if (!rawBody) {
     return null;
   }
 
   try {
-    return sanitizeMailtrapResponse(JSON.parse(rawBody));
+    return sanitizeProviderResponse(JSON.parse(rawBody));
   } catch {
-    return sanitizeMailtrapResponse(rawBody);
+    return sanitizeProviderResponse(rawBody);
   }
 };
 
@@ -177,6 +193,67 @@ export const buildSmtpErrorDetails = (error, smtpConfigSummary = getSmtpConfigSu
   };
 };
 
+const buildGmailApiRawRecipient = ({ email, name }) => {
+  if (!name) {
+    return email;
+  }
+
+  return `"${name}" <${email}>`;
+};
+
+export const buildGmailApiRawMessage = ({
+  to,
+  userName,
+  resetUrl,
+  expiresInMinutes,
+}) => {
+  const fromHeader = getMailFromValue();
+  const toHeader = buildGmailApiRawRecipient({
+    email: to,
+    name: userName,
+  });
+  const boundary = `social-app-boundary-${Date.now()}`;
+
+  return [
+    `From: ${fromHeader}`,
+    `To: ${toHeader}`,
+    `Subject: ${APP_NAME}: recupera tu contrasena`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    buildPasswordResetText({
+      userName,
+      resetUrl,
+      expiresInMinutes,
+    }),
+    "",
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    buildPasswordResetHtml({
+      userName,
+      resetUrl,
+      expiresInMinutes,
+    }).trim(),
+    "",
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+};
+
+export const encodeGmailApiRawMessage = (rawMessage) => {
+  return Buffer.from(rawMessage)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+};
+
 const buildMailtrapRequestPayload = ({
   to,
   userName,
@@ -217,19 +294,26 @@ const buildMailtrapRequestPayload = ({
   };
 };
 
-const buildMailtrapProviderError = ({
+const buildHttpProviderError = ({
+  provider,
+  stage = null,
   status,
   statusText,
   response,
 }) => {
   const providerError = new Error(MAILTRAP_PROVIDER_ERROR_CODE);
   providerError.code = MAILTRAP_PROVIDER_ERROR_CODE;
-  providerError.provider = MAIL_PROVIDERS.MAILTRAP_API;
+  providerError.provider = provider;
+  providerError.stage = stage;
   providerError.status = status;
   providerError.statusText = statusText || null;
-  providerError.mailtrapResponse = response;
+  providerError.providerResponse = response;
+  if (provider === MAIL_PROVIDERS.MAILTRAP_API) {
+    providerError.mailtrapResponse = response;
+  }
   providerError.details = {
-    provider: MAIL_PROVIDERS.MAILTRAP_API,
+    provider,
+    stage,
     status,
     statusText: statusText || null,
     response,
@@ -341,7 +425,7 @@ const sendPasswordResetEmailByMailtrapApi = async ({
     });
 
     if (!response.ok) {
-      const responseBody = parseMailtrapResponseBody(await response.text());
+      const responseBody = parseProviderResponseBody(await response.text());
 
       console.error("[mail-provider] Mailtrap API request failed", {
         provider: MAIL_PROVIDERS.MAILTRAP_API,
@@ -350,7 +434,8 @@ const sendPasswordResetEmailByMailtrapApi = async ({
         response: responseBody,
       });
 
-      throw buildMailtrapProviderError({
+      throw buildHttpProviderError({
+        provider: MAIL_PROVIDERS.MAILTRAP_API,
         status: response.status,
         statusText: response.statusText,
         response: responseBody,
@@ -375,6 +460,149 @@ const sendPasswordResetEmailByMailtrapApi = async ({
   }
 };
 
+const fetchWithTimeout = async ({
+  url,
+  options,
+  timeoutMs,
+}) => {
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    abortController.abort(createTimeoutError());
+  }, timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: abortController.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const requestGmailAccessToken = async (gmailApiConfig) => {
+  const tokenBody = new URLSearchParams({
+    client_id: gmailApiConfig.clientId,
+    client_secret: gmailApiConfig.clientSecret,
+    refresh_token: gmailApiConfig.refreshToken,
+    grant_type: "refresh_token",
+  });
+  const response = await fetchWithTimeout({
+    url: GMAIL_ACCESS_TOKEN_URL,
+    options: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: tokenBody.toString(),
+    },
+    timeoutMs: gmailApiConfig.timeoutMs,
+  });
+
+  if (!response.ok) {
+    const responseBody = parseProviderResponseBody(await response.text());
+
+    console.error("[mail-provider] Gmail API request failed", {
+      provider: MAIL_PROVIDERS.GMAIL_API,
+      stage: "access_token",
+      status: response.status,
+      statusText: response.statusText,
+      response: responseBody,
+    });
+
+    throw buildHttpProviderError({
+      provider: MAIL_PROVIDERS.GMAIL_API,
+      stage: "access_token",
+      status: response.status,
+      statusText: response.statusText,
+      response: responseBody,
+    });
+  }
+
+  const responseData = await response.json();
+
+  return responseData.access_token || null;
+};
+
+const sendPasswordResetEmailByGmailApi = async ({
+  to,
+  userName,
+  resetUrl,
+  expiresInMinutes,
+}) => {
+  const gmailApiConfig = getGmailApiConfig();
+  const gmailApiConfigSummary = getGmailApiConfigSummary();
+
+  try {
+    console.info("[mail-provider] sending password recovery email", {
+      ...gmailApiConfigSummary,
+      hasRecipient: Boolean(to),
+    });
+
+    const accessToken = await requestGmailAccessToken(gmailApiConfig);
+    const rawMessage = encodeGmailApiRawMessage(
+      buildGmailApiRawMessage({
+        to,
+        userName,
+        resetUrl,
+        expiresInMinutes,
+      })
+    );
+    const response = await fetchWithTimeout({
+      url: GMAIL_SEND_MESSAGE_URL,
+      options: {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          raw: rawMessage,
+        }),
+      },
+      timeoutMs: gmailApiConfig.timeoutMs,
+    });
+
+    if (!response.ok) {
+      const responseBody = parseProviderResponseBody(await response.text());
+
+      console.error("[mail-provider] Gmail API request failed", {
+        provider: MAIL_PROVIDERS.GMAIL_API,
+        stage: "send_message",
+        status: response.status,
+        statusText: response.statusText,
+        response: responseBody,
+      });
+
+      throw buildHttpProviderError({
+        provider: MAIL_PROVIDERS.GMAIL_API,
+        stage: "send_message",
+        status: response.status,
+        statusText: response.statusText,
+        response: responseBody,
+      });
+    }
+  } catch (error) {
+    if (error?.name === "AbortError" || error?.code === "ETIMEDOUT") {
+      throw createTimeoutError();
+    }
+
+    if (
+      error?.code !== MAILTRAP_PROVIDER_ERROR_CODE &&
+      error?.provider !== MAIL_PROVIDERS.GMAIL_API
+    ) {
+      console.error("[mail-provider] Gmail API request failed before response", {
+        provider: MAIL_PROVIDERS.GMAIL_API,
+        stage: error?.stage || "unknown",
+        code: error?.code || null,
+        message: redactSensitiveValue(error?.message || null),
+      });
+    }
+
+    throw error;
+  }
+};
+
 export const sendPasswordResetEmail = async ({
   to,
   userName,
@@ -392,6 +620,13 @@ export const sendPasswordResetEmail = async ({
 
   if (provider === MAIL_PROVIDERS.MAILTRAP_API) {
     await sendPasswordResetEmailByMailtrapApi({
+      to,
+      userName,
+      resetUrl,
+      expiresInMinutes,
+    });
+  } else if (provider === MAIL_PROVIDERS.GMAIL_API) {
+    await sendPasswordResetEmailByGmailApi({
       to,
       userName,
       resetUrl,

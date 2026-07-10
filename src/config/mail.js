@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 export const MAIL_PROVIDERS = {
   SMTP: "smtp",
   MAILTRAP_API: "mailtrap_api",
+  GMAIL_API: "gmail_api",
 };
 
 const DEFAULT_MAIL_PORT = 587;
@@ -48,6 +49,10 @@ const getExplicitProvider = () => {
     return MAIL_PROVIDERS.MAILTRAP_API;
   }
 
+  if (provider === MAIL_PROVIDERS.GMAIL_API) {
+    return MAIL_PROVIDERS.GMAIL_API;
+  }
+
   if (provider === MAIL_PROVIDERS.SMTP) {
     return MAIL_PROVIDERS.SMTP;
   }
@@ -74,6 +79,17 @@ export const getMailProvider = () => {
 
   if (process.env.MAILTRAP_API_TOKEN?.trim()) {
     return MAIL_PROVIDERS.MAILTRAP_API;
+  }
+
+  const hasGmailApiCredentials = Boolean(
+    process.env.GMAIL_CLIENT_ID?.trim() &&
+      process.env.GMAIL_CLIENT_SECRET?.trim() &&
+      process.env.GMAIL_REFRESH_TOKEN?.trim() &&
+      process.env.GMAIL_USER?.trim()
+  );
+
+  if (hasGmailApiCredentials) {
+    return MAIL_PROVIDERS.GMAIL_API;
   }
 
   return MAIL_PROVIDERS.SMTP;
@@ -143,6 +159,20 @@ const getMailtrapApiEnv = () => {
   };
 };
 
+const getGmailApiEnv = () => {
+  return {
+    ...getCommonMailEnv(),
+    clientId: process.env.GMAIL_CLIENT_ID?.trim() || "",
+    clientSecret: process.env.GMAIL_CLIENT_SECRET?.trim() || "",
+    refreshToken: process.env.GMAIL_REFRESH_TOKEN?.trim() || "",
+    user: process.env.GMAIL_USER?.trim() || "",
+    timeoutMs: toTimeout(
+      process.env.MAIL_API_TIMEOUT_MS,
+      DEFAULT_API_TIMEOUT_MS
+    ),
+  };
+};
+
 export const getMissingMailEnvVars = () => {
   const provider = getMailProvider();
 
@@ -152,6 +182,18 @@ export const getMissingMailEnvVars = () => {
     return [
       !mailEnv.apiToken && "MAILTRAP_API_TOKEN",
       !mailEnv.apiUrl && "MAILTRAP_API_URL",
+      !mailEnv.from && "MAIL_FROM",
+    ].filter(Boolean);
+  }
+
+  if (provider === MAIL_PROVIDERS.GMAIL_API) {
+    const mailEnv = getGmailApiEnv();
+
+    return [
+      !mailEnv.clientId && "GMAIL_CLIENT_ID",
+      !mailEnv.clientSecret && "GMAIL_CLIENT_SECRET",
+      !mailEnv.refreshToken && "GMAIL_REFRESH_TOKEN",
+      !mailEnv.user && "GMAIL_USER",
       !mailEnv.from && "MAIL_FROM",
     ].filter(Boolean);
   }
@@ -186,6 +228,10 @@ let transporterSignature = null;
 
 export const getMailtrapApiConfig = () => {
   return getMailtrapApiEnv();
+};
+
+export const getGmailApiConfig = () => {
+  return getGmailApiEnv();
 };
 
 export const getSmtpConfig = () => {
@@ -238,6 +284,21 @@ export const getSmtpConfigSummary = () => {
     connectionTimeout: smtpEnv.connectionTimeout,
     greetingTimeout: smtpEnv.greetingTimeout,
     socketTimeout: smtpEnv.socketTimeout,
+  };
+};
+
+export const getGmailApiConfigSummary = () => {
+  const gmailApiEnv = getGmailApiEnv();
+
+  return {
+    provider: MAIL_PROVIDERS.GMAIL_API,
+    hasClientId: Boolean(gmailApiEnv.clientId),
+    hasClientSecret: Boolean(gmailApiEnv.clientSecret),
+    hasRefreshToken: Boolean(gmailApiEnv.refreshToken),
+    hasUser: Boolean(gmailApiEnv.user),
+    user: gmailApiEnv.user || null,
+    fromDomain: gmailApiEnv.from.split("@")[1] || null,
+    timeoutMs: gmailApiEnv.timeoutMs,
   };
 };
 

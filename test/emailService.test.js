@@ -3,14 +3,21 @@ import { jest } from "@jest/globals";
 import {
   getMailProvider,
   getMissingMailEnvVars,
+  getSmtpConfigSummary,
+  getSmtpTransportOptions,
   isMailConfigured,
   MAIL_PROVIDERS,
 } from "../src/config/mail.js";
-import { sendPasswordResetEmail } from "../src/service/emailService.js";
+import {
+  buildSmtpErrorDetails,
+  sendPasswordResetEmail,
+} from "../src/service/emailService.js";
 
 describe("email provider configuration", () => {
   const originalEnv = { ...process.env };
   const originalFetch = global.fetch;
+  let consoleInfoSpy;
+  let consoleErrorSpy;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
@@ -25,6 +32,8 @@ describe("email provider configuration", () => {
     delete process.env.MAIL_API_TIMEOUT_MS;
     process.env.MAIL_FROM = "noreply@example.com";
     process.env.MAIL_FROM_NAME = "Social App";
+    consoleInfoSpy = jest.spyOn(console, "info").mockImplementation(() => {});
+    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -45,6 +54,84 @@ describe("email provider configuration", () => {
     process.env.MAIL_PROVIDER = MAIL_PROVIDERS.MAILTRAP_API;
 
     expect(getMissingMailEnvVars()).toEqual(["MAILTRAP_API_TOKEN"]);
+  });
+
+  test("builds smtp config using numeric port and boolean secure", () => {
+    process.env.MAIL_PROVIDER = MAIL_PROVIDERS.SMTP;
+    process.env.MAIL_HOST = "smtp.gmail.com";
+    process.env.MAIL_PORT = "465";
+    process.env.MAIL_SECURE = "true";
+    process.env.MAIL_USER = "socialapp.soporte@gmail.com";
+    process.env.MAIL_PASSWORD = "app-password";
+
+    expect(getMailProvider()).toBe(MAIL_PROVIDERS.SMTP);
+    expect(getSmtpConfigSummary()).toEqual(
+      expect.objectContaining({
+        provider: MAIL_PROVIDERS.SMTP,
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        requireTLS: false,
+        hasUser: true,
+        hasPassword: true,
+        fromDomain: "example.com",
+      })
+    );
+  });
+
+  test("enables requireTLS for gmail on port 587", () => {
+    process.env.MAIL_PROVIDER = MAIL_PROVIDERS.SMTP;
+    process.env.MAIL_HOST = "smtp.gmail.com";
+    process.env.MAIL_PORT = "587";
+    process.env.MAIL_SECURE = "false";
+    process.env.MAIL_USER = "socialapp.soporte@gmail.com";
+    process.env.MAIL_PASSWORD = "app-password";
+
+    expect(getSmtpTransportOptions()).toEqual(
+      expect.objectContaining({
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
+        requireTLS: true,
+        tls: {
+          servername: "smtp.gmail.com",
+        },
+      })
+    );
+  });
+
+  test("sanitizes smtp diagnostics without exposing credentials", () => {
+    process.env.MAIL_PROVIDER = MAIL_PROVIDERS.SMTP;
+    process.env.MAIL_HOST = "smtp.gmail.com";
+    process.env.MAIL_PORT = "465";
+    process.env.MAIL_SECURE = "true";
+    process.env.MAIL_USER = "socialapp.soporte@gmail.com";
+    process.env.MAIL_PASSWORD = "super-secret-app-password";
+
+    const smtpErrorDetails = buildSmtpErrorDetails({
+      code: "ESOCKET",
+      command: "CONN",
+      responseCode: 535,
+      response: "535 Invalid credentials super-secret-app-password",
+      reason: "Authentication failed super-secret-app-password",
+      message: "socket hang up super-secret-app-password",
+    });
+
+    expect(smtpErrorDetails).toEqual(
+      expect.objectContaining({
+        provider: MAIL_PROVIDERS.SMTP,
+        code: "ESOCKET",
+        command: "CONN",
+        responseCode: 535,
+        stage: "connection",
+      })
+    );
+    expect(JSON.stringify(smtpErrorDetails)).not.toContain(
+      "super-secret-app-password"
+    );
+    expect(smtpErrorDetails.response).toContain("[redacted]");
+    expect(smtpErrorDetails.reason).toContain("[redacted]");
+    expect(smtpErrorDetails.message).toContain("[redacted]");
   });
 
   test("sends password recovery email through mailtrap api", async () => {
@@ -73,6 +160,101 @@ describe("email provider configuration", () => {
           Authorization: "Bearer test-token",
           "Content-Type": "application/json",
         }),
+      })
+    );
+    const [, requestConfig] = global.fetch.mock.calls[0];
+    const payload = JSON.parse(requestConfig.body);
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        from: {
+          email: "noreply@example.com",
+          name: "Social App",
+        },
+        to: [
+          {
+            email: "user@example.com",
+            name: "bryan",
+          },
+        ],
+        subject: "Social App: recupera tu contrasena",
+        text: expect.any(String),
+        html: expect.any(String),
+      })
+    );
+    expect(payload.category).toBeUndefined();
+    expect(consoleInfoSpy).toHaveBeenCalledWith(
+      "[mail-provider] sending password recovery email",
+      expect.objectContaining({
+        provider: MAIL_PROVIDERS.MAILTRAP_API,
+        hasApiToken: true,
+        hasApiUrl: true,
+        hasFrom: true,
+        fromDomain: "example.com",
+        hasRecipient: true,
+      })
+    );
+  });
+
+  test("surfaces safe mailtrap diagnostics when the api request fails", async () => {
+    process.env.MAIL_PROVIDER = MAIL_PROVIDERS.MAILTRAP_API;
+    process.env.MAILTRAP_API_TOKEN = "test-token";
+    process.env.MAILTRAP_API_URL = "https://send.api.mailtrap.io/api/send";
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () =>
+        JSON.stringify({
+          message: "Invalid API token",
+          errors: [
+            {
+              field: "authorization",
+              message: "Bearer token rejected",
+            },
+          ],
+        }),
+    });
+
+    await expect(
+      sendPasswordResetEmail({
+        to: "user@example.com",
+        userName: "bryan",
+        resetUrl: "https://frontend.example.com/reset-password?token=abc",
+        expiresInMinutes: 30,
+      })
+    ).rejects.toMatchObject({
+      code: "MAIL_PROVIDER_REQUEST_FAILED",
+      provider: MAIL_PROVIDERS.MAILTRAP_API,
+      status: 401,
+      statusText: "Unauthorized",
+      mailtrapResponse: {
+        message: "Invalid API token",
+        errors: [
+          {
+            field: "authorization",
+            message: "Bearer token rejected",
+          },
+        ],
+      },
+    });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[mail-provider] Mailtrap API request failed",
+      expect.objectContaining({
+        provider: MAIL_PROVIDERS.MAILTRAP_API,
+        status: 401,
+        statusText: "Unauthorized",
+        response: {
+          message: "Invalid API token",
+          errors: [
+            {
+              field: "authorization",
+              message: "Bearer token rejected",
+            },
+          ],
+        },
       })
     );
   });

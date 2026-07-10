@@ -1,11 +1,38 @@
 import {getDB} from '../config/db.js';
 import { getIO } from '../sockets/sockets.js';
 
-export const NOTIFICATION_TYPES = {
-    FOLLOW: "follow",
-    COMMENT: "comment",
-    REACTION: "reaction",
-    MESSAGE: "message",
+export const NOTIFICATION_TYPES = Object.freeze({
+    FOLLOW_USER: "FOLLOW_USER",
+    COMMENT_POST: "COMMENT_POST",
+    REACTION_POST: "REACTION_POST",
+    REACTION_COMMENT: "REACTION_COMMENT",
+    REPLY_COMMENT: "REPLY_COMMENT",
+    REPOST: "REPOST",
+    MENTION_USER: "MENTION_USER",
+    MESSAGE: "MESSAGE",
+});
+
+const LEGACY_NOTIFICATION_TYPE_ALIASES = Object.freeze({
+    follow: NOTIFICATION_TYPES.FOLLOW_USER,
+    comment: NOTIFICATION_TYPES.COMMENT_POST,
+    reaction: NOTIFICATION_TYPES.REACTION_POST,
+    message: NOTIFICATION_TYPES.MESSAGE,
+});
+
+const VALID_NOTIFICATION_TYPES = new Set(Object.values(NOTIFICATION_TYPES));
+
+export const normalizeNotificationType = (type) => {
+    const rawType = String(type ?? "").trim();
+
+    if (!rawType) {
+        return "";
+    }
+
+    if (VALID_NOTIFICATION_TYPES.has(rawType)) {
+        return rawType;
+    }
+
+    return LEGACY_NOTIFICATION_TYPE_ALIASES[rawType.toLowerCase()] ?? rawType;
 };
 
 const getNotificationById = async (db, notificationId) => {
@@ -20,6 +47,7 @@ const getNotificationById = async (db, notificationId) => {
 export const createNotification = async (userId, type, relateId, from_userId) => {
     const db = getDB();
     const recipientUserId = Number(userId);
+    const normalizedType = normalizeNotificationType(type);
     const actorUserId =
         from_userId === null || from_userId === undefined
             ? null
@@ -27,7 +55,8 @@ export const createNotification = async (userId, type, relateId, from_userId) =>
 
     if (
         Number.isNaN(recipientUserId) ||
-        !type ||
+        !normalizedType ||
+        !VALID_NOTIFICATION_TYPES.has(normalizedType) ||
         (actorUserId !== null && Number.isNaN(actorUserId))
     ) {
         return null;
@@ -39,7 +68,7 @@ export const createNotification = async (userId, type, relateId, from_userId) =>
 
     const [result] = await db.query(
         'INSERT INTO notifications (user_id, type, relate_id, from_userId) VALUES (?,?,?,?)',
-        [recipientUserId, type, relateId, actorUserId]
+        [recipientUserId, normalizedType, relateId, actorUserId]
     );
 
     const notification = await getNotificationById(db, result.insertId);

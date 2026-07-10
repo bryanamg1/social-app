@@ -3,6 +3,29 @@ import { createNotification, NOTIFICATION_TYPES } from "../service/notificationS
 import { getPostById } from "../service/postsService.js";
 import {AppError} from "../utils/utils.js"
 
+const createPostReactionNotification = async ({ postOwnerId, postId, userId }) => {
+  if (!postOwnerId) {
+    return;
+  }
+
+  try {
+    await createNotification(
+      postOwnerId,
+      NOTIFICATION_TYPES.REACTION_POST,
+      postId,
+      userId
+    );
+  } catch (error) {
+    console.error("Reaction notification skipped:", {
+      postOwnerId,
+      postId,
+      userId,
+      code: error?.code || null,
+      message: error?.message || null,
+    });
+  }
+};
+
 export const toggleReactionPost = async (req, res, next) => {
   try {
     const db = await getDB();
@@ -111,12 +134,11 @@ export const toggleReactionPost = async (req, res, next) => {
     const post = await getPostById(db, postId);
 
     if (post?.user_id) {
-      await createNotification(
-        post.user_id,
-        NOTIFICATION_TYPES.REACTION,
+      await createPostReactionNotification({
+        postOwnerId: post.user_id,
         postId,
-        userId
-      );
+        userId,
+      });
     }
 
     return res.status(201).json({

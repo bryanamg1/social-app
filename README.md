@@ -144,15 +144,18 @@ Variables de entorno requeridas:
 - `MAIL_PROVIDER`
 - `MAILTRAP_API_TOKEN`
 - `MAILTRAP_API_URL`
+- `MAIL_FROM`
+- `MAIL_FROM_NAME`
+- `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES`
+- `FRONTEND_URL`
+
+Variables requeridas solo para SMTP:
+
 - `MAIL_HOST`
 - `MAIL_PORT`
 - `MAIL_SECURE`
 - `MAIL_USER`
 - `MAIL_PASSWORD`
-- `MAIL_FROM`
-- `MAIL_FROM_NAME`
-- `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES`
-- `FRONTEND_URL`
 
 SQL manual requerido:
 
@@ -163,9 +166,39 @@ Provider recomendado en produccion:
 - `MAIL_PROVIDER=mailtrap_api`
 - `MAILTRAP_API_URL=https://send.api.mailtrap.io/api/send`
 
+Diagnostico seguro en errores de Mailtrap API:
+
+- Log previo de envio con banderas `hasApiToken`, `hasApiUrl`, `hasFrom`, `fromDomain` y `hasRecipient`
+- Log de error con `status`, `statusText` y respuesta sanitizada del provider
+- Nunca se imprimen `MAILTRAP_API_TOKEN`, `MAIL_PASSWORD`, el token de recuperacion ni la URL completa del reset
+
 Provider opcional para local/dev:
 
 - `MAIL_PROVIDER=smtp`
+
+Configuracion recomendada para Gmail SMTP:
+
+- Opcion A: `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=465`, `MAIL_SECURE=true`
+- Opcion B: `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_SECURE=false`
+- Para Gmail en `587`, el backend habilita `requireTLS=true`
+- El transporte SMTP agrega `tls.servername` con el host configurado
+
+Diagnostico seguro para SMTP:
+
+- Log previo de envio con `host`, `port`, `secure`, `requireTLS`, `hasUser`, `hasPassword` y `fromDomain`
+- Log de error con `code`, `command`, `responseCode`, `response`, `reason`, `message` y `stage`
+- Nunca se imprimen `MAIL_PASSWORD`, App Password, el token de recuperacion ni la URL completa del reset
+
+Script opcional de verificacion local:
+
+```bash
+npm run check:mail-provider
+```
+
+Variables utiles para el script:
+
+- `TEST_MAIL_TO` para enviar un correo de prueba opcional despues de `verify()`
+- No usar este script como parte del flujo de produccion por request
 
 ---
 

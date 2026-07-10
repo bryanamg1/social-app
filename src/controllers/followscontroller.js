@@ -108,7 +108,7 @@ export const followUser = async (req, res, next) =>{
         );
         await createNotification(
             followerid,
-            NOTIFICATION_TYPES.FOLLOW,
+            NOTIFICATION_TYPES.FOLLOW_USER,
             followidUser,
             followidUser
         );

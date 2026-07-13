@@ -5,9 +5,16 @@ import { searchUser } from "../service/usersService.js";
 import { AppError } from "../utils/utils.js";
 import dotenv from "dotenv";    
 import {logger} from "../config/logger.js";
+import { createAuthSession } from "../service/authSessionService.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 import { getMissingMailEnvVars, isMailConfigured } from "../config/mail.js";
 import { sendPasswordResetEmail } from "../service/emailService.js";
+import {
+    getMissingGoogleAuthEnvVars,
+    isGoogleAuthConfigured,
+    resolveGoogleAuthUser,
+    verifyGoogleCredential,
+} from "../service/googleAuthService.js";
 import {
     clearUserRefreshTokens,
     createPasswordRecoveryRequest,
@@ -230,6 +237,82 @@ try {
         })
     );
     }
+};
+
+export const googleAuth = async (req, res, next) => {
+try {
+    const db = getDB();
+    const credential = `${req.body?.credential || ""}`.trim();
+
+    if (!credential) {
+        return next(
+        new AppError({
+            code: "GOOGLE_AUTH_CREDENTIAL_REQUIRED",
+            message: "La credencial de Google es obligatoria.",
+            status: 400,
+        })
+        );
+    }
+
+    if (!isGoogleAuthConfigured()) {
+        return next(
+        new AppError({
+            code: "GOOGLE_AUTH_NOT_CONFIGURED",
+            message: "Google Sign-In no esta configurado.",
+            status: 503,
+            details: getMissingGoogleAuthEnvVars(),
+        })
+        );
+    }
+
+    logger.info("[google-auth] token received", {
+        requestId: req.requestId,
+    });
+
+    const googleProfile = await verifyGoogleCredential(credential);
+
+    logger.info("[google-auth] google token verified", {
+        requestId: req.requestId,
+        email: googleProfile.email,
+    });
+
+    const { user, action } = await resolveGoogleAuthUser(db, googleProfile);
+    const { accessToken, refreshToken } = await createAuthSession(db, user);
+
+    logger.info("[google-auth] user logged in", {
+        requestId: req.requestId,
+        userId: user.user_id,
+        action,
+    });
+
+    return res.status(200).json({
+        msg: "Login exitoso",
+        accessToken,
+        refreshToken,
+    });
+} catch (error) {
+    logger.error("[google-auth] auth failed", {
+        requestId: req.requestId,
+        code: error?.code || null,
+        error: error?.message || error?.code || null,
+        details: error?.details || null,
+    });
+
+    return next(
+    new AppError({
+        code: error?.code || "GOOGLE_AUTH_FAILED",
+        message:
+            error instanceof AppError
+                ? error.message
+                : "No se pudo iniciar sesion con Google.",
+        status: error?.status || 500,
+        details:
+            error instanceof AppError
+                ? error.details
+                : error?.code || error?.message || null,
+    })
+    );
+}
 };
 
 export const forgotPassword = async (req, res, next) => {

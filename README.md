@@ -138,6 +138,7 @@ Endpoints agregados:
 
 - `POST /api/auth/forgot-password`
 - `POST /api/auth/reset-password`
+- `POST /api/auth/google`
 
 Variables de entorno requeridas:
 
@@ -152,6 +153,7 @@ Variables de entorno requeridas:
 - `MAIL_FROM_NAME`
 - `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES`
 - `FRONTEND_URL`
+- `GOOGLE_CLIENT_ID`
 
 Variables requeridas solo para SMTP:
 
@@ -164,6 +166,10 @@ Variables requeridas solo para SMTP:
 SQL manual requerido:
 
 Aplicar el script versionado en `password-reset-tokens.sql` antes de probar el flujo completo.
+
+SQL manual requerido para Google Sign-In:
+
+Aplicar el script versionado en `google-auth-users.sql` antes de habilitar `POST /api/auth/google`.
 
 Provider recomendado en produccion:
 
@@ -235,6 +241,27 @@ Configuracion manual de Gmail API:
 4. Autorizar el scope de envio de Gmail para la cuenta soporte
 5. Obtener y guardar `GMAIL_REFRESH_TOKEN`
 6. Configurar Railway con `MAIL_PROVIDER=gmail_api` y las variables anteriores
+
+Google Sign-In:
+
+- El frontend usa Google Identity Services para obtener un ID token
+- El backend valida ese ID token con `google-auth-library`
+- No se guardan access tokens ni refresh tokens de Google
+- Solo se usa `GOOGLE_CLIENT_ID` en backend para validar la audiencia del token
+- Si el email de Google no esta verificado, el backend rechaza el login
+- Si el email coincide con un usuario local existente, se vincula `google_sub`
+- Si el usuario no existe, se crea una cuenta nueva con `auth_provider=google`
+
+Variables para Google Sign-In:
+
+- Backend: `GOOGLE_CLIENT_ID`
+- Frontend: `VITE_GOOGLE_CLIENT_ID`
+
+Diagnostico operativo:
+
+- SMTP con Gmail puede fallar en Railway por conectividad saliente (`ETIMEDOUT`)
+- Google Sign-In no usa SMTP ni Gmail API de correo
+- Para login social se recomienda Google Identity Services + validacion server-side del ID token
 
 ---
 

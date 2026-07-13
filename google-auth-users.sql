@@ -1,0 +1,4 @@
+ALTER TABLE users
+ADD COLUMN google_sub VARCHAR(255) NULL UNIQUE AFTER email,
+ADD COLUMN auth_provider VARCHAR(30) NOT NULL DEFAULT 'local' AFTER google_sub,
+ADD COLUMN email_verified TINYINT(1) NOT NULL DEFAULT 0 AFTER auth_provider;

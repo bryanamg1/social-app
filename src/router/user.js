@@ -1,6 +1,7 @@
 import express from "express"
 import {
     forgotPassword,
+    googleAuth,
     profile,
     register,
     login,
@@ -22,6 +23,7 @@ const router = express.Router()
 router.get("/users/:id",auth,profile)
 router.post("/register", rateLimitAuth, register);
 router.post("/login", rateLimitLogin, login);
+router.post("/google", rateLimitAuth, googleAuth);
 router.post("/forgot-password", rateLimitPasswordRecovery, forgotPassword);
 router.post("/reset-password", rateLimitPasswordReset, resetPassword);
 router.patch("/update/:id",auth,updateProfile)

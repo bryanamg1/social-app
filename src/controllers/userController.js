@@ -28,15 +28,31 @@ import {
     PASSWORD_RESET_SERVICE_UNAVAILABLE_MESSAGE,
     PASSWORD_RESET_SUCCESS_MESSAGE,
 } from "../service/passwordRecoveryService.js";
+import {
+    createProject,
+    deleteProject,
+    getProjectsByUserId,
+    updateProject,
+} from "../service/profileProjectsService.js";
+import { getPostTypeInsightsByUserId } from "../service/postInsightsService.js";
+import { buildNormalizedProjectPayload } from "../utils/profileProjects.js";
 
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET;
 const PASSWORD_MIN_LENGTH = 6;
 
-export const profile = async (req,res)=>{
+const getAuthenticatedUserId = (req) => {
+    return Number(req.user?.user_id ?? req.user?.id ?? req.user?.user?.id);
+};
+
+const ensureProjectOwnership = (authUserId, routeUserId) => {
+    return authUserId && routeUserId && Number(authUserId) === Number(routeUserId);
+};
+
+export const profile = async (req,res,next)=>{
     try {
         const db = getDB();
-    const userId = req.user?.user?.id || req.params.id;
+    const userId = getAuthenticatedUserId(req) || Number(req.params.id);
 
     if (!userId) {
         return next(
@@ -49,7 +65,7 @@ export const profile = async (req,res)=>{
     }
 
     const [users] = await db.query(
-        "SELECT user_id, user_name, email, bio, location, created_at FROM users WHERE user_id = ?",
+        "SELECT user_id, user_name, email, bio, location, avatar_url, created_at FROM users WHERE user_id = ?",
         [userId]
     );
 
@@ -64,12 +80,29 @@ export const profile = async (req,res)=>{
         );
     }
 
-    const { user_id, user_name, email, bio, location, created_at } = users[0];
+    const [projects, postInsights] = await Promise.all([
+        getProjectsByUserId(db, userId),
+        getPostTypeInsightsByUserId(db, userId),
+    ]);
+    const { user_id, user_name, email, bio, location, avatar_url, created_at } = users[0];
 
     return res.status(200).json({
         ok: true,
         message: "Perfil de usuario",
-        data: { user_id, user_name, email, bio, location, created_at },
+        data: {
+            user_id,
+            user_name,
+            email,
+            bio,
+            location,
+            avatar_url,
+            created_at,
+            projects,
+            post_type_summary: postInsights.summary,
+            dominant_post_type: postInsights.dominant_post_type,
+            dominant_post_type_count: postInsights.dominant_post_type_count,
+            total_posts: postInsights.total_posts,
+        },
         });
     } catch (error) {
     console.error("profile error:", error);
@@ -80,6 +113,249 @@ export const profile = async (req,res)=>{
             message: "Error del servidor",
             status: 500,
             details: error?.code || error?.message || null,
+            })
+        );
+    }
+};
+
+export const createProfileProject = async (req, res, next) => {
+    try {
+        const db = getDB();
+        const authUserId = getAuthenticatedUserId(req);
+        const routeUserId = Number(req.params.id);
+
+        if (!ensureProjectOwnership(authUserId, routeUserId)) {
+            return next(
+                new AppError({
+                    code: "FORBIDDEN",
+                    message: "No tienes permiso para crear proyectos en este perfil",
+                    status: 403,
+                })
+            );
+        }
+
+        const normalizedProject = buildNormalizedProjectPayload(req.body);
+
+        if (!normalizedProject.title) {
+            return next(
+                new AppError({
+                    code: "PROJECT_TITLE_REQUIRED",
+                    message: "El titulo del proyecto es obligatorio",
+                    status: 400,
+                })
+            );
+        }
+
+        if (!normalizedProject.status) {
+            return next(
+                new AppError({
+                    code: "PROJECT_STATUS_INVALID",
+                    message: "El estado del proyecto no es valido",
+                    status: 400,
+                })
+            );
+        }
+
+        if ((req.body?.repo_url || req.body?.repoUrl) && !normalizedProject.repo_url) {
+            return next(
+                new AppError({
+                    code: "PROJECT_REPO_URL_INVALID",
+                    message: "La URL del repositorio no es valida",
+                    status: 400,
+                })
+            );
+        }
+
+        if ((req.body?.demo_url || req.body?.demoUrl) && !normalizedProject.demo_url) {
+            return next(
+                new AppError({
+                    code: "PROJECT_DEMO_URL_INVALID",
+                    message: "La URL del demo no es valida",
+                    status: 400,
+                })
+            );
+        }
+
+        const project = await createProject(db, {
+            userId: routeUserId,
+            ...normalizedProject,
+        });
+
+        return res.status(201).json({
+            ok: true,
+            message: "Proyecto creado correctamente",
+            data: project,
+        });
+    } catch (error) {
+        return next(
+            new AppError({
+                code: "PROFILE_PROJECT_CREATE_FAILED",
+                message: "No se pudo crear el proyecto",
+                status: 500,
+                details: error?.code || error?.message || null,
+            })
+        );
+    }
+};
+
+export const updateProfileProject = async (req, res, next) => {
+    try {
+        const db = getDB();
+        const authUserId = getAuthenticatedUserId(req);
+        const routeUserId = Number(req.params.id);
+        const projectId = Number(req.params.projectId);
+
+        if (!ensureProjectOwnership(authUserId, routeUserId)) {
+            return next(
+                new AppError({
+                    code: "FORBIDDEN",
+                    message: "No tienes permiso para editar proyectos en este perfil",
+                    status: 403,
+                })
+            );
+        }
+
+        if (Number.isNaN(projectId)) {
+            return next(
+                new AppError({
+                    code: "PROJECT_ID_INVALID",
+                    message: "El proyecto no es valido",
+                    status: 400,
+                })
+            );
+        }
+
+        const normalizedProject = buildNormalizedProjectPayload(req.body);
+
+        if (!normalizedProject.title) {
+            return next(
+                new AppError({
+                    code: "PROJECT_TITLE_REQUIRED",
+                    message: "El titulo del proyecto es obligatorio",
+                    status: 400,
+                })
+            );
+        }
+
+        if (!normalizedProject.status) {
+            return next(
+                new AppError({
+                    code: "PROJECT_STATUS_INVALID",
+                    message: "El estado del proyecto no es valido",
+                    status: 400,
+                })
+            );
+        }
+
+        if ((req.body?.repo_url || req.body?.repoUrl) && !normalizedProject.repo_url) {
+            return next(
+                new AppError({
+                    code: "PROJECT_REPO_URL_INVALID",
+                    message: "La URL del repositorio no es valida",
+                    status: 400,
+                })
+            );
+        }
+
+        if ((req.body?.demo_url || req.body?.demoUrl) && !normalizedProject.demo_url) {
+            return next(
+                new AppError({
+                    code: "PROJECT_DEMO_URL_INVALID",
+                    message: "La URL del demo no es valida",
+                    status: 400,
+                })
+            );
+        }
+
+        const project = await updateProject(db, {
+            projectId,
+            userId: routeUserId,
+            ...normalizedProject,
+        });
+
+        if (!project) {
+            return next(
+                new AppError({
+                    code: "PROJECT_NOT_FOUND",
+                    message: "Proyecto no encontrado",
+                    status: 404,
+                })
+            );
+        }
+
+        return res.status(200).json({
+            ok: true,
+            message: "Proyecto actualizado correctamente",
+            data: project,
+        });
+    } catch (error) {
+        return next(
+            new AppError({
+                code: "PROFILE_PROJECT_UPDATE_FAILED",
+                message: "No se pudo actualizar el proyecto",
+                status: 500,
+                details: error?.code || error?.message || null,
+            })
+        );
+    }
+};
+
+export const deleteProfileProject = async (req, res, next) => {
+    try {
+        const db = getDB();
+        const authUserId = getAuthenticatedUserId(req);
+        const routeUserId = Number(req.params.id);
+        const projectId = Number(req.params.projectId);
+
+        if (!ensureProjectOwnership(authUserId, routeUserId)) {
+            return next(
+                new AppError({
+                    code: "FORBIDDEN",
+                    message: "No tienes permiso para eliminar proyectos en este perfil",
+                    status: 403,
+                })
+            );
+        }
+
+        if (Number.isNaN(projectId)) {
+            return next(
+                new AppError({
+                    code: "PROJECT_ID_INVALID",
+                    message: "El proyecto no es valido",
+                    status: 400,
+                })
+            );
+        }
+
+        const result = await deleteProject(db, {
+            projectId,
+            userId: routeUserId,
+        });
+
+        if (!result?.affectedRows) {
+            return next(
+                new AppError({
+                    code: "PROJECT_NOT_FOUND",
+                    message: "Proyecto no encontrado",
+                    status: 404,
+                })
+            );
+        }
+
+        return res.status(200).json({
+            ok: true,
+            message: "Proyecto eliminado correctamente",
+            data: {
+                project_id: projectId,
+            },
+        });
+    } catch (error) {
+        return next(
+            new AppError({
+                code: "PROFILE_PROJECT_DELETE_FAILED",
+                message: "No se pudo eliminar el proyecto",
+                status: 500,
+                details: error?.code || error?.message || null,
             })
         );
     }

@@ -10,6 +10,7 @@ import {
 } from "../service/followsService.js";
 import { pagination } from "../utils/pagination.js";
 import { AppError } from "../utils/utils.js";
+import { normalizePostType } from "../utils/postTypes.js";
 
 export const getFollowStatus = async (req, res, next) => {
   try {
@@ -228,6 +229,10 @@ export const feedfollowers = async (req, res, next) => {
         const idRaw = req.user?.user_id || req.user?.id;
         const userId = parseInt(idRaw, 10);
         const { page, limit, offset } = pagination(req);
+        const requestedPostType = `${req.query.postType ?? req.query.post_type ?? ""}`.trim();
+        const postTypeFilter = requestedPostType
+          ? normalizePostType(requestedPostType)
+          : null;
 
         if (isNaN(userId)) {
             return next(new AppError({
@@ -237,15 +242,26 @@ export const feedfollowers = async (req, res, next) => {
             }));
         }
 
+        if (requestedPostType && !postTypeFilter) {
+            return next(new AppError({
+                code: "POST_TYPE_INVALID",
+                message: "Invalid post type",
+                status: 400,
+                details: { postType: requestedPostType },
+            }));
+        }
+
         const db = getDB();
         const [feed, total] = await Promise.all([
             getFollowingFeedPosts(db, {
                 currentUserId: userId,
                 limit,
                 offset,
+                postType: postTypeFilter,
             }),
             countFollowingFeedPosts(db, {
                 currentUserId: userId,
+                postType: postTypeFilter,
             }),
         ]);
 

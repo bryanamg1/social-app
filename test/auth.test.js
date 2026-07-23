@@ -59,6 +59,18 @@ describe("Authentication middleware", () => {
         expect(res.body.data).toHaveProperty("user_id", 2);
     });
 
+    test("my profile route returns the authenticated user profile", async () => {
+        const token = createAuthToken({ user_id: 4 });
+
+        const res = await tester(app)
+            .get("/api/auth/me/profile")
+            .set("Authorization", `Bearer ${token}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveProperty("ok", true);
+        expect(res.body.data).toHaveProperty("user_id", 4);
+    });
+
     test("rejects creating a post for a different authenticated user", async () => {
         const token = createAuthToken({ user_id: 4 });
 
@@ -105,6 +117,19 @@ describe("Authentication middleware", () => {
             .post("/api/image/uploadImage/2")
             .set("Authorization", `Bearer ${token}`)
             .send({ image_url: "https://images.example.com/avatar.png" });
+
+        expect(res.status).toBe(403);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.error.code).toBe("FORBIDDEN");
+    });
+
+    test("rejects legacy profile updates for a different authenticated user", async () => {
+        const token = createAuthToken({ user_id: 4 });
+
+        const res = await tester(app)
+            .patch("/api/auth/update/2")
+            .set("Authorization", `Bearer ${token}`)
+            .send({ bio: "bio test" });
 
         expect(res.status).toBe(403);
         expect(res.body.ok).toBe(false);

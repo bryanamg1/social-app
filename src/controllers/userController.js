@@ -48,9 +48,11 @@ const ensureProjectOwnership = (authUserId, routeUserId) => {
 export const profile = async (req,res,next)=>{
     try {
         const db = getDB();
-    const userId = Number(req.params.id);
+    const authUserId = getAuthenticatedUserId(req);
+    const routeUserParam = req.params.id ?? null;
+    const userId = routeUserParam ? Number(routeUserParam) : authUserId;
 
-    if (!getAuthenticatedUserId(req)) {
+    if (!authUserId) {
         return next(
         new AppError({
             code: "UNAUTHORIZED",
@@ -782,8 +784,42 @@ try {
 export const updateProfile = async (req,res,next) =>{
     try{
         const db = getDB();
-        const userId = req.user.user_id;
+        const userId = getAuthenticatedUserId(req);
+        const routeUserParam = req.params.id ?? null;
+        const routeUserId = routeUserParam ? Number(req.params.id) : userId;
         const {user_name,bio,location}= req.body;
+
+        if (!userId) {
+            return next(
+                new AppError({
+                    code:"UNAUTHORIZED",
+                    message:"Usuario no autenticado",
+                    status:401
+                })
+            );
+        }
+
+        if (routeUserParam && Number.isNaN(routeUserId)) {
+            return next(
+                new AppError({
+                    code:"USER_ID_INVALID",
+                    message:"Usuario invalido",
+                    status:400,
+                    details: { userId: req.params.id },
+                })
+            );
+        }
+
+        if (routeUserParam && !isSameUser(routeUserId, userId)) {
+            return next(
+                new AppError({
+                    code:"FORBIDDEN",
+                    message:"No tienes permiso para actualizar este perfil",
+                    status:403,
+                    details: { authenticatedUserId: userId, routeUserId },
+                })
+            );
+        }
 
         const [existinguser]= await db.query ("SELECT * FROM users WHERE user_id = ?",[userId]);
 

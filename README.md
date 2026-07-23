@@ -278,11 +278,18 @@ Diagnostico operativo:
 
 Auth / usuarios:
 
+- `GET /api/auth/me/profile`
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/users/:id`
+- `PATCH /api/auth/me/profile`
 - `PATCH /api/auth/update/:id`
 - `GET /api/auth/usersSearch`
+
+Notas de seguridad:
+
+- `GET /api/auth/me/profile` y `PATCH /api/auth/me/profile` usan siempre el usuario autenticado
+- `PATCH /api/auth/update/:id` queda disponible por compatibilidad legacy y exige coincidencia entre `:id` y JWT
 
 Posts:
 

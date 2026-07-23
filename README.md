@@ -115,7 +115,6 @@ Tablas relevantes del sistema social:
 - `reactions`
 - `follows`
 - `notifications`
-- `refresh_tokens`
 
 Tablas de mensajería implementadas:
 
@@ -166,19 +165,19 @@ Variables requeridas solo para SMTP:
 
 SQL manual requerido:
 
-Aplicar el script versionado en `password-reset-tokens.sql` antes de probar el flujo completo.
+Aplicar el script versionado en `./password-reset-tokens.sql` antes de probar el flujo completo.
 
 SQL manual requerido para post intents:
 
-Aplicar el script versionado en `post-intent-types.sql` antes de usar filtros y metadata de `post_type` en posts, feed y perfiles.
+Aplicar el script versionado en `./post-intent-types.sql` antes de usar filtros y metadata de `post_type` en posts, feed y perfiles.
 
 SQL manual requerido para proyectos de perfil:
 
-Aplicar el script versionado en `user-profile-projects.sql` antes de usar CRUD de proyectos y sugerencias enriquecidas.
+Aplicar el script versionado en `./user-profile-projects.sql` antes de usar CRUD de proyectos y sugerencias enriquecidas.
 
 SQL manual requerido para Google Sign-In:
 
-Aplicar el script versionado en `google-auth-users.sql` antes de habilitar `POST /api/auth/google`.
+Aplicar el script versionado en `./google-auth-users.sql` antes de habilitar `POST /api/auth/google`.
 
 Provider recomendado en produccion:
 
@@ -256,6 +255,7 @@ Google Sign-In:
 - El frontend usa Google Identity Services para obtener un ID token
 - El backend valida ese ID token con `google-auth-library`
 - No se guardan access tokens ni refresh tokens de Google
+- La sesion actual del producto devuelve y consume solo `accessToken`
 - Solo se usa `GOOGLE_CLIENT_ID` en backend para validar la audiencia del token
 - Si el email de Google no esta verificado, el backend rechaza el login
 - Si el email coincide con un usuario local existente, se vincula `google_sub`
@@ -286,23 +286,42 @@ Auth / usuarios:
 
 Posts:
 
-- `POST /api/posts/CreatePost/:id`
+- `POST /api/posts`
 - `GET /api/posts/allpost`
 - `GET /api/posts/postByUserId/:id`
 - `GET /api/posts/postById/:id`
 - `DELETE /api/posts/removePost/:id`
 
+Notas de seguridad para rutas autenticadas:
+
+- `POST /api/posts` usa el usuario autenticado en JWT
+- `POST /api/posts/CreatePost/:id` queda disponible por compatibilidad legacy y exige coincidencia entre `:id` y JWT
+- `DELETE /api/posts/removePost/:id` valida propiedad real de la publicacion antes de borrar
+
 Comentarios:
 
-- `POST /api/comments/addComment/:id/:postId`
+- `POST /api/comments/:postId`
 - `GET /api/comments/readComment/:postId`
+
+Notas de seguridad:
+
+- `POST /api/comments/:postId` usa el usuario autenticado en JWT
+- `POST /api/comments/addComment/:id/:postId` queda disponible por compatibilidad legacy y exige coincidencia entre `:id` y JWT
 
 Reacciones:
 
-- `POST /api/reactions/toggleReaction/:userId/:postId`
+- `POST /api/reactions/posts/:postId`
 - `GET /api/reactions/reactionsPost/:postId`
-- `POST /api/reactions/toggleReactionComment/:userId/:commentId`
+- `POST /api/reactions/comments/:commentId`
 - `GET /api/reactions/reactionComment/:commentId`
+- `GET /api/reactions/posts/:postId/mine`
+- `GET /api/reactions/comments/:commentId/mine`
+
+Notas de seguridad:
+
+- las rutas nuevas autenticadas usan el usuario del JWT y ya no aceptan `userId` en URL
+- las rutas legacy autenticadas exigen coincidencia entre `:userId` o `:uid` y el usuario autenticado
+- `GET /api/reactions/:uid/:pid/byUserInPost` y `GET /api/reactions/:uid/:cid/byUserInComment` requieren `auth`
 
 Follows:
 
@@ -323,6 +342,11 @@ Notificaciones:
 - `GET /api/notifications/notifications/user`
 - `PATCH /api/notifications/:notificationId/seen`
 - `PATCH /api/notifications/seenall`
+- `POST /api/notifications/notification`
+
+Notas de seguridad:
+
+- `POST /api/notifications/notification` requiere `auth` y usa el actor autenticado para `from_userId`
 
 ---
 

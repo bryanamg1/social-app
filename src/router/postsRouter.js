@@ -6,6 +6,7 @@ import { rateLimitRead } from "../middleware/rateLimit.js";
 
 const router = Router();
 
+router.post("/", auth, optionalUpload, addpost);
 router.post("/CreatePost/:id", auth, optionalUpload, addpost);
 router.get("/allpost", rateLimitRead, allpost)
 router.get("/postByUserId/:id",postByUserId )

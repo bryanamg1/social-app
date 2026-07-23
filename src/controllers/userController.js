@@ -891,7 +891,8 @@ export const setImage = async (req, res,next) => {
     try {
     const db = getDB();
     const authUserId = getAuthenticatedUserId(req);
-    const routeUserId = getRouteUserId(req.params.userId);
+    const routeUserParam = req.params.userId ?? null;
+    const routeUserId = routeUserParam ? getRouteUserId(routeUserParam) : authUserId;
 
         if (!authUserId) {
     return next(
@@ -903,7 +904,7 @@ export const setImage = async (req, res,next) => {
         );
     }
 
-        if (!routeUserId) {
+        if (routeUserParam && !routeUserId) {
     return next(
         new AppError({
         code: "USER_ID_INVALID",

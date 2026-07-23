@@ -10,7 +10,8 @@ export const addComment = async (req, res, next) =>{
         const db = await getDB();
         const commentData = req.body;
         const authUserId = getAuthenticatedUserId(req);
-        const routeUserId = getRouteUserId(req.params.id);
+        const routeUserParam = req.params.id ?? null;
+        const routeUserId = routeUserParam ? getRouteUserId(routeUserParam) : authUserId;
         const postId = parseInt(req.params.postId, 10);
 
         if (!authUserId) {
@@ -23,7 +24,7 @@ export const addComment = async (req, res, next) =>{
         )
     }
 
-        if (!routeUserId) {
+        if (routeUserParam && !routeUserId) {
         return next(
             new AppError({
                 code: "USER_ID_INVALID",

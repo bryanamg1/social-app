@@ -29,7 +29,7 @@ const createPostReactionNotification = async ({ postOwnerId, postId, userId }) =
 
 const validateAuthenticatedActor = (req, routeUserParam) => {
   const authUserId = getAuthenticatedUserId(req);
-  const routeUserId = getRouteUserId(routeUserParam);
+  const routeUserId = routeUserParam ? getRouteUserId(routeUserParam) : authUserId;
 
   if (!authUserId) {
     return {
@@ -41,7 +41,7 @@ const validateAuthenticatedActor = (req, routeUserParam) => {
     };
   }
 
-  if (!routeUserId) {
+  if (routeUserParam && !routeUserId) {
     return {
       error: new AppError({
         code: "USER_ID_INVALID",
@@ -72,7 +72,7 @@ export const toggleReactionPost = async (req, res, next) => {
     const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
     const { authUserId, error } = validateAuthenticatedActor(
       req,
-      req.params.userId
+      req.params.userId ?? null
     );
     const postId = Number(req.params.postId);
 
@@ -261,7 +261,7 @@ export const toggleReactionComment = async (req, res, next) => {
     const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
     const { authUserId, error } = validateAuthenticatedActor(
       req,
-      req.params.userId
+      req.params.userId ?? null
     );
     const commentId = parseInt(req.params.commentId, 10);
 
@@ -437,7 +437,10 @@ export const getReactionsByComment = async (req, res, next) => {
 export const getMyReactionByPost = async (req, res, next) => {
   try {
     const db = await getDB();
-    const { authUserId, error } = validateAuthenticatedActor(req, req.params.uid);
+    const { authUserId, error } = validateAuthenticatedActor(
+      req,
+      req.params.uid ?? null
+    );
     const postId = parseInt(req.params.pid, 10);
 
     if (error) {
@@ -503,7 +506,10 @@ export const getMyReactionByPost = async (req, res, next) => {
 export const getMyReactionByComment = async (req, res, next) => {
   try {
     const db = await getDB();
-    const { authUserId, error } = validateAuthenticatedActor(req, req.params.uid);
+    const { authUserId, error } = validateAuthenticatedActor(
+      req,
+      req.params.uid ?? null
+    );
     const commentId = parseInt(req.params.cid, 10);
 
     if (error) {

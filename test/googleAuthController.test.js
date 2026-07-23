@@ -138,7 +138,6 @@ describe("googleAuth controller", () => {
     });
     createAuthSession.mockResolvedValue({
       accessToken: "access-token",
-      refreshToken: "refresh-token",
     });
 
     await googleAuth(req, res, next);
@@ -147,7 +146,6 @@ describe("googleAuth controller", () => {
     expect(res.json).toHaveBeenCalledWith({
       msg: "Login exitoso",
       accessToken: "access-token",
-      refreshToken: "refresh-token",
     });
     expect(next).not.toHaveBeenCalled();
   });

@@ -46,6 +46,18 @@ describe("Authentication middleware", () => {
         expect(res.body).toHaveProperty("ok", true);
         expect(res.body).toHaveProperty("data");
     });
+
+    test("profile route returns the requested user profile, not the authenticated user profile", async () => {
+        const token = createAuthToken({ user_id: 4 });
+
+        const res = await tester(app)
+            .get("/api/auth/users/2")
+            .set("Authorization", `Bearer ${token}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveProperty("ok", true);
+        expect(res.body.data).toHaveProperty("user_id", 2);
+    });
 });
 
 describe("Rate limit login", () => {

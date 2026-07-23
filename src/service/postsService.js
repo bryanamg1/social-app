@@ -1,63 +1,87 @@
-import {getDB} from "../config/db.js";
-export const insertPost = async(db, postData, userId, image_url) =>{
-    try {
-      const db = getDB();
-        const inserPostQuery = 
-        `INSERT INTO posts (user_id, content, image_url)
-        VALUES (?, ?, ?)
-        `;
+import { getDB } from "../config/db.js";
+import { DEFAULT_POST_TYPE } from "../utils/postTypes.js";
 
-        const content = String(postData?.content ?? "");
+const buildPostsWhereClause = ({ userId = null, postType = null } = {}) => {
+  const clauses = [];
+  const params = [];
 
-        const result = await db.query(inserPostQuery, [userId, content, image_url]);
-        console.log("✅ Post inserted successfully", result)
-        return result;
+  if (userId) {
+    clauses.push("p.user_id = ?");
+    params.push(userId);
+  }
 
-    } catch (error) {
-        console.error("❌ Error inserting post", error);
-        throw error;
-    }
-}
+  if (postType) {
+    clauses.push("p.post_type = ?");
+    params.push(postType);
+  }
 
-export const getPosts = async (db, limit, offset, userId = null)=>{
-    try {
-      const db = getDB();
-        let query = `
-      SELECT p.*, u.user_name 
+  return {
+    whereSql: clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "",
+    params,
+  };
+};
+
+export const insertPost = async (db, postData, userId, image_url) => {
+  try {
+    const database = db || getDB();
+    const insertPostQuery = `
+      INSERT INTO posts (user_id, content, image_url, post_type)
+      VALUES (?, ?, ?, ?)
+    `;
+
+    const content = String(postData?.content ?? "");
+    const postType = postData?.post_type ?? DEFAULT_POST_TYPE;
+
+    const [result] = await database.query(insertPostQuery, [
+      userId,
+      content,
+      image_url,
+      postType,
+    ]);
+
+    console.log("✅ Post inserted successfully", result);
+    return result;
+  } catch (error) {
+    console.error("❌ Error inserting post", error);
+    throw error;
+  }
+};
+
+export const getPosts = async (
+  db,
+  { limit, offset, userId = null, postType = null } = {}
+) => {
+  try {
+    const database = db || getDB();
+    const { whereSql, params } = buildPostsWhereClause({ userId, postType });
+    const query = `
+      SELECT p.*, u.user_name, u.avatar_url
       FROM posts p
       JOIN users u ON p.user_id = u.user_id
+      ${whereSql}
+      ORDER BY p.created_at DESC
+      LIMIT ? OFFSET ?
     `;
-    const params = [];
 
-    if (userId) {
-      query += ` WHERE u.user_id = ?`;
-      params.push(userId);
-    }
-
-
-    query += ` ORDER BY p.created_at DESC LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
-
-    const [rows] = await db.query(query, params);
+    const [rows] = await database.query(query, [...params, limit, offset]);
     return rows;
-
-    } catch (error) {
-        console.error("❌ Error reading posts", error);
-        throw error;
-    }
+  } catch (error) {
+    console.error("❌ Error reading posts", error);
+    throw error;
+  }
 };
 
 export const getPostById = async (db, post_id) => {
   try {
-    const db = getDB();
+    const database = db || getDB();
     const query = `
-      SELECT p.*, u.user_name 
+      SELECT p.*, u.user_name, u.avatar_url
       FROM posts p
       JOIN users u ON p.user_id = u.user_id
       WHERE p.post_id = ?
     `;
 
-    const [rows] = await db.query(query, [post_id]);
+    const [rows] = await database.query(query, [post_id]);
     
     return rows[0] || null; // Si no hay resultados, devolvemos null
   } catch (error) {
@@ -66,40 +90,37 @@ export const getPostById = async (db, post_id) => {
   }
 };
 
-export const deletePost = async (db, postId)=>{
-    try {
-      const db = getDB();
-        const deletePostQuery = `
-        delete from posts
-        where post_id = ?`;
-
-        const [result] = await db.query(deletePostQuery,[postId])
-        
-        console.log("✅ Comment deleted successfully:", result);
-    return result;
-
-
-    } catch (error) {
-        console.error("❌ Error deleting post:", error)
-    throw error;
-    }
-}
-
-export const countposts = async (db, userId = null) =>{
+export const deletePost = async (db, postId) => {
   try {
-    const db = getDB();
-    let count = `SELECT COUNT(*) AS total FROM posts`;
-    const params = [];
-    if (userId) {
-      count += ` WHERE user_id = ?`;
-      params.push(userId);
-    }
-    const [rows] = await db.query(count, params);
+    const database = db || getDB();
+    const deletePostQuery = `
+      DELETE FROM posts
+      WHERE post_id = ?
+    `;
+
+    const [result] = await database.query(deletePostQuery, [postId]);
+
+    console.log("✅ Comment deleted successfully:", result);
+    return result;
+  } catch (error) {
+    console.error("❌ Error deleting post:", error);
+    throw error;
+  }
+};
+
+export const countposts = async (
+  db,
+  { userId = null, postType = null } = {}
+) => {
+  try {
+    const database = db || getDB();
+    const { whereSql, params } = buildPostsWhereClause({ userId, postType });
+    const countQuery = `SELECT COUNT(*) AS total FROM posts p${whereSql}`;
+    const [rows] = await database.query(countQuery, params);
+
     return rows[0].total;
-    
   } catch (error) {
     console.error("❌ Error counting posts:", error);
     throw error;
-    
   }
-}
+};

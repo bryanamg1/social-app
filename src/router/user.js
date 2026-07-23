@@ -31,7 +31,6 @@ router.post("/google", rateLimitAuth, googleAuth);
 router.post("/forgot-password", rateLimitPasswordRecovery, forgotPassword);
 router.post("/reset-password", rateLimitPasswordReset, resetPassword);
 router.patch("/me/profile",auth,updateProfile)
-router.patch("/update/:id",auth,updateProfile)
 router.post("/users/:id/projects", auth, createProfileProject);
 router.patch("/users/:id/projects/:projectId", auth, updateProfileProject);
 router.delete("/users/:id/projects/:projectId", auth, deleteProfileProject);

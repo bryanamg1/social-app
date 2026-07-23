@@ -4,7 +4,7 @@ import { AppError } from "../utils/utils.js";
 import { getCache, setCache, invalidateCache } from "../cache/cacheHelpers.js";
 import { pagination } from "../utils/pagination.js";
 import { normalizePostType } from "../utils/postTypes.js";
-import { getAuthenticatedUserId, getRouteUserId, isSameUser } from "../utils/authHelpers.js";
+import { getAuthenticatedUserId } from "../utils/authHelpers.js";
 
 const resolveValidatedPostType = (value) => {
   const rawValue = `${value ?? ""}`.trim();
@@ -21,8 +21,6 @@ export const addpost = async (req, res, next) => {
       const db = await getDB();
      const postData = req.body;
      const authUserId = getAuthenticatedUserId(req);
-     const routeUserParam = req.params.id ?? null;
-     const routeUserId = routeUserParam ? getRouteUserId(routeUserParam) : authUserId;
      const {image_url: imageUrlFromBody} = req.body;
      const normalizedContent = String(postData?.content ?? "").trim();
      const normalizedPostType =
@@ -43,28 +41,6 @@ export const addpost = async (req, res, next) => {
           code: "UNAUTHORIZED",
           message: "Usuario no autenticado",
           status: 401,
-        })
-      );
-    }
-
-        if (routeUserParam && !routeUserId) {
-      return next(
-        new AppError({
-          code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
-          status: 400,
-          details: { param: req.params.id },
-        })
-      );
-    }
-
-    if (!isSameUser(authUserId, routeUserId)) {
-      return next(
-        new AppError({
-          code: "FORBIDDEN",
-          message: "No tienes permiso para crear publicaciones para otro usuario",
-          status: 403,
-          details: { authenticatedUserId: authUserId, routeUserId },
         })
       );
     }

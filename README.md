@@ -283,13 +283,11 @@ Auth / usuarios:
 - `POST /api/auth/login`
 - `GET /api/auth/users/:id`
 - `PATCH /api/auth/me/profile`
-- `PATCH /api/auth/update/:id`
 - `GET /api/auth/usersSearch`
 
 Notas de seguridad:
 
 - `GET /api/auth/me/profile` y `PATCH /api/auth/me/profile` usan siempre el usuario autenticado
-- `PATCH /api/auth/update/:id` queda disponible por compatibilidad legacy y exige coincidencia entre `:id` y JWT
 
 Posts:
 
@@ -302,7 +300,6 @@ Posts:
 Notas de seguridad para rutas autenticadas:
 
 - `POST /api/posts` usa el usuario autenticado en JWT
-- `POST /api/posts/CreatePost/:id` queda disponible por compatibilidad legacy y exige coincidencia entre `:id` y JWT
 - `DELETE /api/posts/removePost/:id` valida propiedad real de la publicacion antes de borrar
 
 Comentarios:
@@ -313,7 +310,6 @@ Comentarios:
 Notas de seguridad:
 
 - `POST /api/comments/:postId` usa el usuario autenticado en JWT
-- `POST /api/comments/addComment/:id/:postId` queda disponible por compatibilidad legacy y exige coincidencia entre `:id` y JWT
 
 Reacciones:
 
@@ -326,9 +322,7 @@ Reacciones:
 
 Notas de seguridad:
 
-- las rutas nuevas autenticadas usan el usuario del JWT y ya no aceptan `userId` en URL
-- las rutas legacy autenticadas exigen coincidencia entre `:userId` o `:uid` y el usuario autenticado
-- `GET /api/reactions/:uid/:pid/byUserInPost` y `GET /api/reactions/:uid/:cid/byUserInComment` requieren `auth`
+- las rutas autenticadas usan el usuario del JWT y ya no aceptan `userId` en URL
 
 Follows:
 
@@ -346,9 +340,9 @@ Conversaciones y mensajes:
 
 Notificaciones:
 
-- `GET /api/notifications/notifications/user`
+- `GET /api/notifications`
 - `PATCH /api/notifications/:notificationId/seen`
-- `PATCH /api/notifications/seenall`
+- `PATCH /api/notifications/seen-all`
 
 Notas de seguridad:
 

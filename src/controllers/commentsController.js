@@ -3,15 +3,13 @@ import { insertComment, readComments } from "../service/commentService.js";
 import { createNotification, NOTIFICATION_TYPES } from "../service/notificationService.js";
 import { getPostById } from "../service/postsService.js";
 import { AppError } from "../utils/utils.js";
-import { getAuthenticatedUserId, getRouteUserId, isSameUser } from "../utils/authHelpers.js";
+import { getAuthenticatedUserId } from "../utils/authHelpers.js";
 
 export const addComment = async (req, res, next) =>{
     try {
         const db = await getDB();
         const commentData = req.body;
         const authUserId = getAuthenticatedUserId(req);
-        const routeUserParam = req.params.id ?? null;
-        const routeUserId = routeUserParam ? getRouteUserId(routeUserParam) : authUserId;
         const postId = parseInt(req.params.postId, 10);
 
         if (!authUserId) {
@@ -20,27 +18,6 @@ export const addComment = async (req, res, next) =>{
                 code: "UNAUTHORIZED",
                 message: "Usuario no autenticado",
                 status: 401
-            })
-        )
-    }
-
-        if (routeUserParam && !routeUserId) {
-        return next(
-            new AppError({
-                code: "USER_ID_INVALID",
-                message: "Invalid or missing user ID",
-                status: 400
-            })
-        )
-    }
-
-    if (!isSameUser(authUserId, routeUserId)) {
-        return next(
-            new AppError({
-                code: "FORBIDDEN",
-                message: "No tienes permiso para comentar en nombre de otro usuario",
-                status: 403,
-                details: { authenticatedUserId: authUserId, routeUserId },
             })
         )
     }

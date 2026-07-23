@@ -71,81 +71,34 @@ describe("Authentication middleware", () => {
         expect(res.body.data).toHaveProperty("user_id", 4);
     });
 
-    test("rejects creating a post for a different authenticated user", async () => {
+    test("legacy authenticated social routes are no longer exposed", async () => {
         const token = createAuthToken({ user_id: 4 });
+        const legacyRoutes = [
+            { method: "post", path: "/api/posts/CreatePost/2", body: { content: "post test", post_type: "project" } },
+            { method: "post", path: "/api/comments/addComment/2/1", body: { comment_text: "comentario test" } },
+            { method: "post", path: "/api/reactions/toggleReaction/2/1", body: { status: "LIKE" } },
+            { method: "post", path: "/api/reactions/toggleReactionComment/2/1", body: { status: "LIKE" } },
+            { method: "get", path: "/api/reactions/2/1/byUserInPost" },
+            { method: "get", path: "/api/reactions/2/1/byUserInComment" },
+            { method: "post", path: "/api/image/uploadImage/2", body: { image_url: "https://images.example.com/avatar.png" } },
+            { method: "patch", path: "/api/auth/update/2", body: { bio: "bio test" } },
+            { method: "get", path: "/api/notifications/notifications/user" },
+            { method: "patch", path: "/api/notifications/seenall" },
+        ];
 
-        const res = await tester(app)
-            .post("/api/posts/CreatePost/2")
-            .set("Authorization", `Bearer ${token}`)
-            .send({ content: "post test", post_type: "project" });
+        for (const route of legacyRoutes) {
+            const request = tester(app)[route.method](route.path).set(
+                "Authorization",
+                `Bearer ${token}`
+            );
 
-        expect(res.status).toBe(403);
-        expect(res.body.ok).toBe(false);
-        expect(res.body.error.code).toBe("FORBIDDEN");
-    });
+            if (route.body) {
+                request.send(route.body);
+            }
 
-    test("rejects commenting for a different authenticated user", async () => {
-        const token = createAuthToken({ user_id: 4 });
-
-        const res = await tester(app)
-            .post("/api/comments/addComment/2/1")
-            .set("Authorization", `Bearer ${token}`)
-            .send({ comment_text: "comentario test" });
-
-        expect(res.status).toBe(403);
-        expect(res.body.ok).toBe(false);
-        expect(res.body.error.code).toBe("FORBIDDEN");
-    });
-
-    test("rejects reacting for a different authenticated user", async () => {
-        const token = createAuthToken({ user_id: 4 });
-
-        const res = await tester(app)
-            .post("/api/reactions/toggleReaction/2/1")
-            .set("Authorization", `Bearer ${token}`)
-            .send({ status: "LIKE" });
-
-        expect(res.status).toBe(403);
-        expect(res.body.ok).toBe(false);
-        expect(res.body.error.code).toBe("FORBIDDEN");
-    });
-
-    test("rejects avatar updates for a different authenticated user", async () => {
-        const token = createAuthToken({ user_id: 4 });
-
-        const res = await tester(app)
-            .post("/api/image/uploadImage/2")
-            .set("Authorization", `Bearer ${token}`)
-            .send({ image_url: "https://images.example.com/avatar.png" });
-
-        expect(res.status).toBe(403);
-        expect(res.body.ok).toBe(false);
-        expect(res.body.error.code).toBe("FORBIDDEN");
-    });
-
-    test("rejects legacy profile updates for a different authenticated user", async () => {
-        const token = createAuthToken({ user_id: 4 });
-
-        const res = await tester(app)
-            .patch("/api/auth/update/2")
-            .set("Authorization", `Bearer ${token}`)
-            .send({ bio: "bio test" });
-
-        expect(res.status).toBe(403);
-        expect(res.body.ok).toBe(false);
-        expect(res.body.error.code).toBe("FORBIDDEN");
-    });
-
-    test("rejects reading my reaction for a different authenticated user", async () => {
-        const token = createAuthToken({ user_id: 4 });
-
-        const res = await tester(app)
-            .get("/api/reactions/2/1/byUserInPost")
-            .set("Authorization", `Bearer ${token}`);
-
-        expect(res.status).toBe(403);
-        expect(res.body.ok).toBe(false);
-        expect(res.body.error.code).toBe("FORBIDDEN");
+            const response = await request;
+            expect(response.status).toBe(404);
+        }
     });
 });
 

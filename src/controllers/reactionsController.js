@@ -2,7 +2,7 @@ import {getDB} from "../config/db.js";
 import { createNotification, NOTIFICATION_TYPES } from "../service/notificationService.js";
 import { getPostById } from "../service/postsService.js";
 import {AppError} from "../utils/utils.js"
-import { getAuthenticatedUserId, getRouteUserId, isSameUser } from "../utils/authHelpers.js";
+import { getAuthenticatedUserId } from "../utils/authHelpers.js";
 
 const createPostReactionNotification = async ({ postOwnerId, postId, userId }) => {
   if (!postOwnerId) {
@@ -27,9 +27,8 @@ const createPostReactionNotification = async ({ postOwnerId, postId, userId }) =
   }
 };
 
-const validateAuthenticatedActor = (req, routeUserParam) => {
+const validateAuthenticatedActor = (req) => {
   const authUserId = getAuthenticatedUserId(req);
-  const routeUserId = routeUserParam ? getRouteUserId(routeUserParam) : authUserId;
 
   if (!authUserId) {
     return {
@@ -37,29 +36,7 @@ const validateAuthenticatedActor = (req, routeUserParam) => {
         code: "UNAUTHORIZED",
         message: "Usuario no autenticado",
         status: 401,
-      }),
-    };
-  }
-
-  if (routeUserParam && !routeUserId) {
-    return {
-      error: new AppError({
-        code: "USER_ID_INVALID",
-        message: "Invalid or missing user ID",
-        status: 400,
-        details: { param: routeUserParam },
-      }),
-    };
-  }
-
-  if (!isSameUser(authUserId, routeUserId)) {
-    return {
-      error: new AppError({
-        code: "FORBIDDEN",
-        message: "No tienes permiso para reaccionar en nombre de otro usuario",
-        status: 403,
-        details: { authenticatedUserId: authUserId, routeUserId },
-      }),
+        }),
     };
   }
 
@@ -70,10 +47,7 @@ export const toggleReactionPost = async (req, res, next) => {
   try {
     const db = await getDB();
     const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
-    const { authUserId, error } = validateAuthenticatedActor(
-      req,
-      req.params.userId ?? null
-    );
+    const { authUserId, error } = validateAuthenticatedActor(req);
     const postId = Number(req.params.postId);
 
     if (error) {
@@ -259,10 +233,7 @@ export const toggleReactionComment = async (req, res, next) => {
   try {
     const db = await getDB();
     const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
-    const { authUserId, error } = validateAuthenticatedActor(
-      req,
-      req.params.userId ?? null
-    );
+    const { authUserId, error } = validateAuthenticatedActor(req);
     const commentId = parseInt(req.params.commentId, 10);
 
     if (error) {
@@ -437,10 +408,7 @@ export const getReactionsByComment = async (req, res, next) => {
 export const getMyReactionByPost = async (req, res, next) => {
   try {
     const db = await getDB();
-    const { authUserId, error } = validateAuthenticatedActor(
-      req,
-      req.params.uid ?? null
-    );
+    const { authUserId, error } = validateAuthenticatedActor(req);
     const postId = parseInt(req.params.pid, 10);
 
     if (error) {
@@ -506,10 +474,7 @@ export const getMyReactionByPost = async (req, res, next) => {
 export const getMyReactionByComment = async (req, res, next) => {
   try {
     const db = await getDB();
-    const { authUserId, error } = validateAuthenticatedActor(
-      req,
-      req.params.uid ?? null
-    );
+    const { authUserId, error } = validateAuthenticatedActor(req);
     const commentId = parseInt(req.params.cid, 10);
 
     if (error) {

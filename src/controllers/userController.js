@@ -35,7 +35,7 @@ import {
 } from "../service/profileProjectsService.js";
 import { getPostTypeInsightsByUserId } from "../service/postInsightsService.js";
 import { buildNormalizedProjectPayload } from "../utils/profileProjects.js";
-import { getAuthenticatedUserId, getRouteUserId, isSameUser } from "../utils/authHelpers.js";
+import { getAuthenticatedUserId, isSameUser } from "../utils/authHelpers.js";
 
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET;
@@ -785,8 +785,6 @@ export const updateProfile = async (req,res,next) =>{
     try{
         const db = getDB();
         const userId = getAuthenticatedUserId(req);
-        const routeUserParam = req.params.id ?? null;
-        const routeUserId = routeUserParam ? Number(req.params.id) : userId;
         const {user_name,bio,location}= req.body;
 
         if (!userId) {
@@ -795,28 +793,6 @@ export const updateProfile = async (req,res,next) =>{
                     code:"UNAUTHORIZED",
                     message:"Usuario no autenticado",
                     status:401
-                })
-            );
-        }
-
-        if (routeUserParam && Number.isNaN(routeUserId)) {
-            return next(
-                new AppError({
-                    code:"USER_ID_INVALID",
-                    message:"Usuario invalido",
-                    status:400,
-                    details: { userId: req.params.id },
-                })
-            );
-        }
-
-        if (routeUserParam && !isSameUser(routeUserId, userId)) {
-            return next(
-                new AppError({
-                    code:"FORBIDDEN",
-                    message:"No tienes permiso para actualizar este perfil",
-                    status:403,
-                    details: { authenticatedUserId: userId, routeUserId },
                 })
             );
         }
@@ -927,8 +903,6 @@ export const setImage = async (req, res,next) => {
     try {
     const db = getDB();
     const authUserId = getAuthenticatedUserId(req);
-    const routeUserParam = req.params.userId ?? null;
-    const routeUserId = routeUserParam ? getRouteUserId(routeUserParam) : authUserId;
 
         if (!authUserId) {
     return next(
@@ -936,28 +910,6 @@ export const setImage = async (req, res,next) => {
         code: "UNAUTHORIZED",
         message: "Usuario no autenticado",
         status: 401,
-            })
-        );
-    }
-
-        if (routeUserParam && !routeUserId) {
-    return next(
-        new AppError({
-        code: "USER_ID_INVALID",
-        message: "Invalid or missing user ID",
-        status: 400,
-        details: { param: req.params.userId },
-            })
-        );
-    }
-
-    if (!isSameUser(authUserId, routeUserId)) {
-    return next(
-        new AppError({
-        code: "FORBIDDEN",
-        message: "No tienes permiso para actualizar este avatar",
-        status: 403,
-        details: { authenticatedUserId: authUserId, routeUserId },
             })
         );
     }

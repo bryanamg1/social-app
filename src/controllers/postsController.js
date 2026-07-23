@@ -3,6 +3,17 @@ import { insertPost, getPosts,deletePost, getPostById, countposts } from "../ser
 import { AppError } from "../utils/utils.js";
 import { getCache, setCache, invalidateCache } from "../cache/cacheHelpers.js";
 import { pagination } from "../utils/pagination.js";
+import { normalizePostType } from "../utils/postTypes.js";
+
+const resolveValidatedPostType = (value) => {
+  const rawValue = `${value ?? ""}`.trim();
+
+  if (!rawValue) {
+    return null;
+  }
+
+  return normalizePostType(rawValue);
+};
 
 export const addpost = async (req, res, next) => {
     try {
@@ -11,6 +22,8 @@ export const addpost = async (req, res, next) => {
      const userId = parseInt(req.params.id, 10);
      const {image_url: imageUrlFromBody} = req.body;
      const normalizedContent = String(postData?.content ?? "").trim();
+     const normalizedPostType =
+      normalizePostType(postData?.post_type);
 
      let image_url = null;
  // validations
@@ -42,6 +55,17 @@ export const addpost = async (req, res, next) => {
       );
     }
 
+    if (!normalizedPostType) {
+      return next(
+        new AppError({
+          code: "POST_TYPE_INVALID",
+          message: "Invalid post type",
+          status: 400,
+          details: { post_type: postData?.post_type ?? null },
+        })
+      );
+    }
+
     
 // insert
     const result = await insertPost(
@@ -49,6 +73,7 @@ export const addpost = async (req, res, next) => {
       {
         ...postData,
         content: normalizedContent,
+        post_type: normalizedPostType,
       },
       userId,
       image_url
@@ -61,7 +86,8 @@ export const addpost = async (req, res, next) => {
     res.status(201).json({
       message: "✅ Post added successfully",
       postId: result.insertId,
-      image_url
+      image_url,
+      post_type: normalizedPostType,
     });
 
 
@@ -82,9 +108,29 @@ export const allpost = async (req, res, next) =>{
 try {
   const db = await getDB();
 const { page, limit, offset } = pagination(req);
+const postTypeFilter = resolveValidatedPostType(
+  req.query.postType ?? req.query.post_type
+);
 
-  const result = await getPosts(db, limit, offset)
-  const total = await countposts(db);
+  if ((req.query.postType || req.query.post_type) && !postTypeFilter) {
+    return next(
+      new AppError({
+        code: "POST_TYPE_INVALID",
+        message: "Invalid post type",
+        status: 400,
+        details: { postType: req.query.postType ?? req.query.post_type },
+      })
+    );
+  }
+
+  const result = await getPosts(db, {
+    limit,
+    offset,
+    postType: postTypeFilter,
+  });
+  const total = await countposts(db, {
+    postType: postTypeFilter,
+  });
 
     if (!result || result.length === 0) {
       return next(
@@ -128,6 +174,9 @@ export const postByUserId = async (req, res, next) => {
     const limit = Math.max(parseInt(req.query.limit) || 10, 1);
     const offset = (page - 1) * limit;
     const userId = parseInt(req.params.id, 10);
+    const postTypeFilter = resolveValidatedPostType(
+      req.query.postType ?? req.query.post_type
+    );
 
     // 🔹 Validación del ID
     if (isNaN(userId)) {
@@ -141,8 +190,28 @@ export const postByUserId = async (req, res, next) => {
       );
     }
 
+    if ((req.query.postType || req.query.post_type) && !postTypeFilter) {
+      return next(
+        new AppError({
+          code: "POST_TYPE_INVALID",
+          message: "Invalid post type",
+          status: 400,
+          details: { postType: req.query.postType ?? req.query.post_type },
+        })
+      );
+    }
+
     // 🔹 Consulta al servicio
-    const result = await getPosts(db, limit, offset, userId);
+    const result = await getPosts(db, {
+      limit,
+      offset,
+      userId,
+      postType: postTypeFilter,
+    });
+    const total = await countposts(db, {
+      userId,
+      postType: postTypeFilter,
+    });
 
     // 🔹 Si no hay resultados
     if (!result || result.length === 0) {
@@ -159,7 +228,13 @@ export const postByUserId = async (req, res, next) => {
     // 🔹 Respuesta exitosa
     res.status(200).json({
       message: "✅ Posts retrieved successfully",
-      ...result
+      data: result,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
 
   } catch (error) {

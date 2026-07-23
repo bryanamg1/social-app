@@ -202,5 +202,13 @@ export const markPasswordResetTokenUsed = async (db, resetTokenId) => {
 };
 
 export const clearUserRefreshTokens = async (db, userId) => {
-  await db.execute("DELETE FROM refresh_tokens WHERE user_id = ?", [userId]);
+  try {
+    await db.execute("DELETE FROM refresh_tokens WHERE user_id = ?", [userId]);
+  } catch (error) {
+    if (error?.code === "ER_NO_SUCH_TABLE") {
+      return;
+    }
+
+    throw error;
+  }
 };

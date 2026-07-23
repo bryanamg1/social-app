@@ -5,6 +5,6 @@ import auth from "../middleware/auth.js";
 
 const router = Router();
 
-router.post('/uploadImage/:userId', auth ,optionalUpload,setImage)
+router.post('/avatar', auth, optionalUpload, setImage)
 
 export default router;

@@ -19,9 +19,9 @@ export async function getCache (key){
 
         if(isDev){
             console.log(`🟢 CACHE HIT: ${key}`);
-            return JSON.parse(data)
-            
         }
+
+        return JSON.parse(data)
 
     } catch (error) {
         console.error("❌ getCache error:", error?.message || error);

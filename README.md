@@ -123,6 +123,7 @@ Tablas de mensajería implementadas:
 - `conversation_users`
 - `messages`
 - `password_reset_tokens` (manual, para recuperacion de contrasena)
+- `user_projects` (manual, para proyectos de perfil)
 
 Relación resumida:
 
@@ -166,6 +167,14 @@ Variables requeridas solo para SMTP:
 SQL manual requerido:
 
 Aplicar el script versionado en `password-reset-tokens.sql` antes de probar el flujo completo.
+
+SQL manual requerido para post intents:
+
+Aplicar el script versionado en `post-intent-types.sql` antes de usar filtros y metadata de `post_type` en posts, feed y perfiles.
+
+SQL manual requerido para proyectos de perfil:
+
+Aplicar el script versionado en `user-profile-projects.sql` antes de usar CRUD de proyectos y sugerencias enriquecidas.
 
 SQL manual requerido para Google Sign-In:
 

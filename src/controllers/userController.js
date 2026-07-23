@@ -52,14 +52,25 @@ const ensureProjectOwnership = (authUserId, routeUserId) => {
 export const profile = async (req,res,next)=>{
     try {
         const db = getDB();
-    const userId = getAuthenticatedUserId(req) || Number(req.params.id);
+    const userId = Number(req.params.id);
 
-    if (!userId) {
+    if (!getAuthenticatedUserId(req)) {
         return next(
         new AppError({
             code: "UNAUTHORIZED",
             message: "Usuario no autenticado",
             status: 401,
+            })
+        );
+    }
+
+    if (Number.isNaN(userId)) {
+        return next(
+            new AppError({
+                code: "USER_ID_INVALID",
+                message: "Usuario invalido",
+                status: 400,
+                details: { userId: req.params.id },
             })
         );
     }

@@ -1,6 +1,5 @@
 import {
   getnotifications,
-  createNotification,
   markallseen,
   markseen,
 } from "../service/notificationService.js";
@@ -77,74 +76,6 @@ export const SeenAllNotifications = async (req, res, next) => {
       new AppError({
         code: "ALL_NOTIFICATIONS_SEEN_FAILED",
         message: "Error al marcar todas las notificaciones como vistas",
-        status: 500,
-        details: error?.message || null,
-      })
-    );
-  }
-};
-
-export const Arrivednotification = async (req, res, next) => {
-  try {
-    const actorUserId = Number(req.user?.user_id ?? req.user?.id);
-    const { userId, type, relateId, from_userId } = req.body;
-    const recipientUserId = Number(userId);
-    const routeActorUserId =
-      from_userId === null || from_userId === undefined
-        ? actorUserId
-        : Number(from_userId);
-
-    if (!Number.isInteger(actorUserId) || actorUserId <= 0) {
-      return next(
-        new AppError({
-          code: "UNAUTHORIZED",
-          message: "Usuario no autenticado",
-          status: 401,
-        })
-      );
-    }
-
-    if (!Number.isInteger(recipientUserId) || recipientUserId <= 0 || !type) {
-      return next(
-        new AppError({
-          code: "INVALID_NOTIFICATION_DATA",
-          message: "Datos de notificacion invalidos",
-          status: 400,
-        })
-      );
-    }
-
-    if (Number.isNaN(routeActorUserId) || routeActorUserId !== actorUserId) {
-      return next(
-        new AppError({
-          code: "FORBIDDEN",
-          message: "No tienes permiso para crear notificaciones en nombre de otro usuario",
-          status: 403,
-          details: {
-            authenticatedUserId: actorUserId,
-            requestedActorUserId: from_userId ?? null,
-          },
-        })
-      );
-    }
-
-    const notificationId = await createNotification(
-      recipientUserId,
-      type,
-      relateId,
-      actorUserId
-    );
-
-    res.status(201).json({
-      ok: true,
-      message: "Notificacion creada",
-      data: notificationId,
-    });
-  } catch (error) {
-    return next(
-      new AppError({
-        code: "NOTIFICATION_CREATION_FAILED",
-        message: "Error al crear la notificacion",
         status: 500,
         details: error?.message || null,
       })

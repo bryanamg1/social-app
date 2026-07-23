@@ -3,7 +3,6 @@ import {
   UserNotifications,
   SeenNotification,
   SeenAllNotifications,
-  Arrivednotification,
 } from "../controllers/notificationControllers.js";
 import auth from "../middleware/auth.js";
 
@@ -14,6 +13,5 @@ router.get("/notifications/user", auth, UserNotifications);
 router.patch("/:notificationId/seen", auth, SeenNotification);
 router.patch("/seen-all", auth, SeenAllNotifications);
 router.patch("/seenall", auth, SeenAllNotifications);
-router.post("/notification", auth, Arrivednotification);
 
 export default router;

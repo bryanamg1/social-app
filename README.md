@@ -349,11 +349,10 @@ Notificaciones:
 - `GET /api/notifications/notifications/user`
 - `PATCH /api/notifications/:notificationId/seen`
 - `PATCH /api/notifications/seenall`
-- `POST /api/notifications/notification`
 
 Notas de seguridad:
 
-- `POST /api/notifications/notification` requiere `auth` y usa el actor autenticado para `from_userId`
+- las notificaciones se generan desde flujos internos autenticados del backend (follow, comentarios, reacciones y mensajes)
 
 ---
 

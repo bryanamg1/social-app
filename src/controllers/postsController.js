@@ -4,6 +4,7 @@ import { AppError } from "../utils/utils.js";
 import { getCache, setCache, invalidateCache } from "../cache/cacheHelpers.js";
 import { pagination } from "../utils/pagination.js";
 import { normalizePostType } from "../utils/postTypes.js";
+import { getAuthenticatedUserId, getRouteUserId, isSameUser } from "../utils/authHelpers.js";
 
 const resolveValidatedPostType = (value) => {
   const rawValue = `${value ?? ""}`.trim();
@@ -19,7 +20,8 @@ export const addpost = async (req, res, next) => {
     try {
       const db = await getDB();
      const postData = req.body;
-     const userId = parseInt(req.params.id, 10);
+     const authUserId = getAuthenticatedUserId(req);
+     const routeUserId = getRouteUserId(req.params.id);
      const {image_url: imageUrlFromBody} = req.body;
      const normalizedContent = String(postData?.content ?? "").trim();
      const normalizedPostType =
@@ -34,13 +36,34 @@ export const addpost = async (req, res, next) => {
       image_url = imageUrlFromBody.trim();
     }
 
-        if (isNaN(userId)) {
+        if (!authUserId) {
+      return next(
+        new AppError({
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
+        })
+      );
+    }
+
+        if (!routeUserId) {
       return next(
         new AppError({
           code: "USER_ID_INVALID",
           message: "Invalid or missing user ID",
           status: 400,
           details: { param: req.params.id },
+        })
+      );
+    }
+
+    if (!isSameUser(authUserId, routeUserId)) {
+      return next(
+        new AppError({
+          code: "FORBIDDEN",
+          message: "No tienes permiso para crear publicaciones para otro usuario",
+          status: 403,
+          details: { authenticatedUserId: authUserId, routeUserId },
         })
       );
     }
@@ -75,7 +98,7 @@ export const addpost = async (req, res, next) => {
         content: normalizedContent,
         post_type: normalizedPostType,
       },
-      userId,
+      authUserId,
       image_url
     );
 
@@ -315,6 +338,17 @@ export const deletePostById = async (req, res, next) => {
   try {
     const db = await getDB();
     const postId = parseInt(req.params.id, 10)
+    const authUserId = getAuthenticatedUserId(req);
+
+    if (!authUserId) {
+      return next(
+        new AppError({
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
+        })
+      );
+    }
 
     if (isNaN(postId)) {
       return next(
@@ -323,6 +357,30 @@ export const deletePostById = async (req, res, next) => {
           message: "Invalid or missing post ID",
           status: 400,
           details: { param: req.params.id },
+        })
+      );
+    }
+
+    const post = await getPostById(db, postId);
+
+    if (!post) {
+      return next(
+        new AppError({
+          code: "POST_NOT_FOUND",
+          message: "❌ Post not found",
+          status: 404,
+          details: { postId },
+        })
+      );
+    }
+
+    if (!isSameUser(post.user_id, authUserId)) {
+      return next(
+        new AppError({
+          code: "FORBIDDEN",
+          message: "No tienes permiso para eliminar esta publicacion",
+          status: 403,
+          details: { authenticatedUserId: authUserId, ownerUserId: post.user_id, postId },
         })
       );
     }

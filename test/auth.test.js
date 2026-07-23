@@ -58,6 +58,70 @@ describe("Authentication middleware", () => {
         expect(res.body).toHaveProperty("ok", true);
         expect(res.body.data).toHaveProperty("user_id", 2);
     });
+
+    test("rejects creating a post for a different authenticated user", async () => {
+        const token = createAuthToken({ user_id: 4 });
+
+        const res = await tester(app)
+            .post("/api/posts/CreatePost/2")
+            .set("Authorization", `Bearer ${token}`)
+            .send({ content: "post test", post_type: "project" });
+
+        expect(res.status).toBe(403);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.error.code).toBe("FORBIDDEN");
+    });
+
+    test("rejects commenting for a different authenticated user", async () => {
+        const token = createAuthToken({ user_id: 4 });
+
+        const res = await tester(app)
+            .post("/api/comments/addComment/2/1")
+            .set("Authorization", `Bearer ${token}`)
+            .send({ comment_text: "comentario test" });
+
+        expect(res.status).toBe(403);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.error.code).toBe("FORBIDDEN");
+    });
+
+    test("rejects reacting for a different authenticated user", async () => {
+        const token = createAuthToken({ user_id: 4 });
+
+        const res = await tester(app)
+            .post("/api/reactions/toggleReaction/2/1")
+            .set("Authorization", `Bearer ${token}`)
+            .send({ status: "LIKE" });
+
+        expect(res.status).toBe(403);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.error.code).toBe("FORBIDDEN");
+    });
+
+    test("rejects avatar updates for a different authenticated user", async () => {
+        const token = createAuthToken({ user_id: 4 });
+
+        const res = await tester(app)
+            .post("/api/image/uploadImage/2")
+            .set("Authorization", `Bearer ${token}`)
+            .send({ image_url: "https://images.example.com/avatar.png" });
+
+        expect(res.status).toBe(403);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.error.code).toBe("FORBIDDEN");
+    });
+
+    test("rejects reading my reaction for a different authenticated user", async () => {
+        const token = createAuthToken({ user_id: 4 });
+
+        const res = await tester(app)
+            .get("/api/reactions/2/1/byUserInPost")
+            .set("Authorization", `Bearer ${token}`);
+
+        expect(res.status).toBe(403);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.error.code).toBe("FORBIDDEN");
+    });
 });
 
 describe("Rate limit login", () => {

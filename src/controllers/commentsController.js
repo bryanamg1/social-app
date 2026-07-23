@@ -3,20 +3,43 @@ import { insertComment, readComments } from "../service/commentService.js";
 import { createNotification, NOTIFICATION_TYPES } from "../service/notificationService.js";
 import { getPostById } from "../service/postsService.js";
 import { AppError } from "../utils/utils.js";
+import { getAuthenticatedUserId, getRouteUserId, isSameUser } from "../utils/authHelpers.js";
 
 export const addComment = async (req, res, next) =>{
     try {
         const db = await getDB();
         const commentData = req.body;
-        const userId = parseInt(req.params.id, 10);
+        const authUserId = getAuthenticatedUserId(req);
+        const routeUserId = getRouteUserId(req.params.id);
         const postId = parseInt(req.params.postId, 10);
 
-        if (isNaN(userId)) {
+        if (!authUserId) {
+        return next(
+            new AppError({
+                code: "UNAUTHORIZED",
+                message: "Usuario no autenticado",
+                status: 401
+            })
+        )
+    }
+
+        if (!routeUserId) {
         return next(
             new AppError({
                 code: "USER_ID_INVALID",
                 message: "Invalid or missing user ID",
                 status: 400
+            })
+        )
+    }
+
+    if (!isSameUser(authUserId, routeUserId)) {
+        return next(
+            new AppError({
+                code: "FORBIDDEN",
+                message: "No tienes permiso para comentar en nombre de otro usuario",
+                status: 403,
+                details: { authenticatedUserId: authUserId, routeUserId },
             })
         )
     }
@@ -69,7 +92,7 @@ export const addComment = async (req, res, next) =>{
         }
     }
 
-    const result = await insertComment(db,comment_text, parent_comment_id, postId, userId)
+    const result = await insertComment(db,comment_text, parent_comment_id, postId, authUserId)
     const post = await getPostById(db, postId);
 
     if (post?.user_id) {
@@ -77,7 +100,7 @@ export const addComment = async (req, res, next) =>{
             post.user_id,
             NOTIFICATION_TYPES.COMMENT_POST,
             postId,
-            userId
+            authUserId
         );
     }
 

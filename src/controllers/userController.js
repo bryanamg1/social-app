@@ -6,7 +6,6 @@ import { AppError } from "../utils/utils.js";
 import dotenv from "dotenv";    
 import {logger} from "../config/logger.js";
 import { createAuthSession } from "../service/authSessionService.js";
-import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 import { getMissingMailEnvVars, isMailConfigured } from "../config/mail.js";
 import { sendPasswordResetEmail } from "../service/emailService.js";
 import {
@@ -36,17 +35,14 @@ import {
 } from "../service/profileProjectsService.js";
 import { getPostTypeInsightsByUserId } from "../service/postInsightsService.js";
 import { buildNormalizedProjectPayload } from "../utils/profileProjects.js";
+import { getAuthenticatedUserId, getRouteUserId, isSameUser } from "../utils/authHelpers.js";
 
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET;
 const PASSWORD_MIN_LENGTH = 6;
 
-const getAuthenticatedUserId = (req) => {
-    return Number(req.user?.user_id ?? req.user?.id ?? req.user?.user?.id);
-};
-
 const ensureProjectOwnership = (authUserId, routeUserId) => {
-    return authUserId && routeUserId && Number(authUserId) === Number(routeUserId);
+    return authUserId && routeUserId && isSameUser(authUserId, routeUserId);
 };
 
 export const profile = async (req,res,next)=>{
@@ -480,33 +476,13 @@ try {
         );
     }
 
-    // 🔐 ACCESS TOKEN (15 min)
-    const accessToken = generateAccessToken({
-        id: user.user_id,
-        email: user.email,
-        name: user.user_name,
-    });
-
-    // 🔐 REFRESH TOKEN (random)
-    const refreshToken = generateRefreshToken();
-
-    // 🔒 HASH DEL REFRESH
-    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    await db.execute(
-        "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
-        [user.user_id, hashedRefreshToken, expiresAt]
-    );
+    const { accessToken } = await createAuthSession(db, user);
 
     logger.info("login successful", { email });
 
     return res.status(200).json({
         msg: "Login exitoso",
         accessToken,
-        refreshToken,
     });
 } catch (error) {
     logger.error("login error", {
@@ -564,7 +540,7 @@ try {
     });
 
     const { user, action } = await resolveGoogleAuthUser(db, googleProfile);
-    const { accessToken, refreshToken } = await createAuthSession(db, user);
+    const { accessToken } = await createAuthSession(db, user);
 
     logger.info("[google-auth] user logged in", {
         requestId: req.requestId,
@@ -575,7 +551,6 @@ try {
     return res.status(200).json({
         msg: "Login exitoso",
         accessToken,
-        refreshToken,
     });
 } catch (error) {
     logger.error("[google-auth] auth failed", {
@@ -914,15 +889,38 @@ catch (error) {
 
 export const setImage = async (req, res,next) => {
     try {
-    const userId = parseInt(req.params.userId, 10);
+    const db = getDB();
+    const authUserId = getAuthenticatedUserId(req);
+    const routeUserId = getRouteUserId(req.params.userId);
 
-        if (isNaN(userId)) {
+        if (!authUserId) {
+    return next(
+        new AppError({
+        code: "UNAUTHORIZED",
+        message: "Usuario no autenticado",
+        status: 401,
+            })
+        );
+    }
+
+        if (!routeUserId) {
     return next(
         new AppError({
         code: "USER_ID_INVALID",
         message: "Invalid or missing user ID",
         status: 400,
         details: { param: req.params.userId },
+            })
+        );
+    }
+
+    if (!isSameUser(authUserId, routeUserId)) {
+    return next(
+        new AppError({
+        code: "FORBIDDEN",
+        message: "No tienes permiso para actualizar este avatar",
+        status: 403,
+        details: { authenticatedUserId: authUserId, routeUserId },
             })
         );
     }
@@ -952,7 +950,7 @@ if (!image_url) {
         WHERE user_id = ?
     `;
 
-    await db.query(updateImageQuery, [image_url, userId]);
+    await db.query(updateImageQuery, [image_url, authUserId]);
 
     return res.status(200).json({
         message: "Imagen subida y actualizada correctamente",

@@ -2,6 +2,7 @@ import {getDB} from "../config/db.js";
 import { createNotification, NOTIFICATION_TYPES } from "../service/notificationService.js";
 import { getPostById } from "../service/postsService.js";
 import {AppError} from "../utils/utils.js"
+import { getAuthenticatedUserId, getRouteUserId, isSameUser } from "../utils/authHelpers.js";
 
 const createPostReactionNotification = async ({ postOwnerId, postId, userId }) => {
   if (!postOwnerId) {
@@ -26,25 +27,60 @@ const createPostReactionNotification = async ({ postOwnerId, postId, userId }) =
   }
 };
 
+const validateAuthenticatedActor = (req, routeUserParam) => {
+  const authUserId = getAuthenticatedUserId(req);
+  const routeUserId = getRouteUserId(routeUserParam);
+
+  if (!authUserId) {
+    return {
+      error: new AppError({
+        code: "UNAUTHORIZED",
+        message: "Usuario no autenticado",
+        status: 401,
+      }),
+    };
+  }
+
+  if (!routeUserId) {
+    return {
+      error: new AppError({
+        code: "USER_ID_INVALID",
+        message: "Invalid or missing user ID",
+        status: 400,
+        details: { param: routeUserParam },
+      }),
+    };
+  }
+
+  if (!isSameUser(authUserId, routeUserId)) {
+    return {
+      error: new AppError({
+        code: "FORBIDDEN",
+        message: "No tienes permiso para reaccionar en nombre de otro usuario",
+        status: 403,
+        details: { authenticatedUserId: authUserId, routeUserId },
+      }),
+    };
+  }
+
+  return { authUserId };
+};
+
 export const toggleReactionPost = async (req, res, next) => {
   try {
     const db = await getDB();
     const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
-    const userId = Number(req.params.userId);
+    const { authUserId, error } = validateAuthenticatedActor(
+      req,
+      req.params.userId
+    );
     const postId = Number(req.params.postId);
 
-    // ✅ validations
-    if (!Number.isInteger(userId) || userId <= 0) {
-      return next(
-        new AppError({
-          code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
-          status: 400,
-          details: { param: req.params.userId },
-        })
-      );
+    if (error) {
+      return next(error);
     }
 
+    // ✅ validations
     if (!Number.isInteger(postId) || postId <= 0) {
       return next(
         new AppError({
@@ -81,7 +117,7 @@ export const toggleReactionPost = async (req, res, next) => {
     // Buscar reacción existente
     const [existing] = await db.query(
       "SELECT reaction_type FROM post_reactions WHERE user_id = ? AND post_id = ?",
-      [userId, postId]
+      [authUserId, postId]
     );
 
     // Ya existe una reacción
@@ -92,7 +128,7 @@ export const toggleReactionPost = async (req, res, next) => {
       if (currentReaction === status) {
         await db.query(
           "DELETE FROM post_reactions WHERE user_id = ? AND post_id = ?",
-          [userId, postId]
+          [authUserId, postId]
         );
 
         return res.status(200).json({
@@ -101,7 +137,7 @@ export const toggleReactionPost = async (req, res, next) => {
           data: {
             status: false,
             reaction: null,
-            userId,
+            userId: authUserId,
             postId,
           },
         });
@@ -110,7 +146,7 @@ export const toggleReactionPost = async (req, res, next) => {
       // Reacción distinta → actualizar
       await db.query(
         "UPDATE post_reactions SET reaction_type = ? WHERE user_id = ? AND post_id = ?",
-        [status, userId, postId]
+        [status, authUserId, postId]
       );
 
       return res.status(200).json({
@@ -119,7 +155,7 @@ export const toggleReactionPost = async (req, res, next) => {
         data: {
           status: true,
           reaction: status,
-          userId,
+          userId: authUserId,
           postId,
         },
       });
@@ -128,7 +164,7 @@ export const toggleReactionPost = async (req, res, next) => {
     // No existe → crear nueva
     await db.query(
       "INSERT INTO post_reactions (user_id, post_id, reaction_type) VALUES (?, ?, ?)",
-      [userId, postId, status]
+      [authUserId, postId, status]
     );
 
     const post = await getPostById(db, postId);
@@ -137,7 +173,7 @@ export const toggleReactionPost = async (req, res, next) => {
       await createPostReactionNotification({
         postOwnerId: post.user_id,
         postId,
-        userId,
+        userId: authUserId,
       });
     }
 
@@ -147,7 +183,7 @@ export const toggleReactionPost = async (req, res, next) => {
       data: {
         status: true,
         reaction: status,
-        userId,
+        userId: authUserId,
         postId,
       },
     });
@@ -223,21 +259,17 @@ export const toggleReactionComment = async (req, res, next) => {
   try {
     const db = await getDB();
     const { status } = req.body; // LIKE | DISLIKE | LOVE | HAHA | WOW | SAD
-    const userId = parseInt(req.params.userId, 10);
+    const { authUserId, error } = validateAuthenticatedActor(
+      req,
+      req.params.userId
+    );
     const commentId = parseInt(req.params.commentId, 10);
 
-    // ✅ validations
-    if (!Number.isInteger(userId) || userId <= 0) {
-      return next(
-        new AppError({
-          code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
-          status: 400,
-          details: { param: req.params.userId },
-        })
-      );
+    if (error) {
+      return next(error);
     }
 
+    // ✅ validations
     if (!Number.isInteger(commentId) || commentId <= 0) {
       return next(
         new AppError({
@@ -274,7 +306,7 @@ export const toggleReactionComment = async (req, res, next) => {
     // Buscar reacción existente
     const [existing] = await db.query(
       "SELECT reaction_type FROM comment_reactions WHERE user_id = ? AND comment_id = ?",
-      [userId, commentId]
+      [authUserId, commentId]
     );
 
     // Ya existe una reacción
@@ -285,7 +317,7 @@ export const toggleReactionComment = async (req, res, next) => {
       if (currentReaction === status) {
         await db.query(
           "DELETE FROM comment_reactions WHERE user_id = ? AND comment_id = ?",
-          [userId, commentId]
+          [authUserId, commentId]
         );
 
         return res.status(200).json({
@@ -294,7 +326,7 @@ export const toggleReactionComment = async (req, res, next) => {
           data: {
             status: false,
             reaction: null,
-            userId,
+            userId: authUserId,
             commentId,
           },
         });
@@ -303,7 +335,7 @@ export const toggleReactionComment = async (req, res, next) => {
       // Reacción distinta → actualizar
       await db.query(
         "UPDATE comment_reactions SET reaction_type = ? WHERE user_id = ? AND comment_id = ?",
-        [status, userId, commentId]
+        [status, authUserId, commentId]
       );
 
       return res.status(200).json({
@@ -312,7 +344,7 @@ export const toggleReactionComment = async (req, res, next) => {
         data: {
           status: true,
           reaction: status,
-          userId,
+          userId: authUserId,
           commentId,
         },
       });
@@ -321,7 +353,7 @@ export const toggleReactionComment = async (req, res, next) => {
     // No existe → crear nueva
     await db.query(
       "INSERT INTO comment_reactions (user_id, comment_id, reaction_type) VALUES (?, ?, ?)",
-      [userId, commentId, status]
+      [authUserId, commentId, status]
     );
 
     return res.status(201).json({
@@ -330,7 +362,7 @@ export const toggleReactionComment = async (req, res, next) => {
       data: {
         status: true,
         reaction: status,
-        userId,
+        userId: authUserId,
         commentId,
       },
     });
@@ -405,18 +437,11 @@ export const getReactionsByComment = async (req, res, next) => {
 export const getMyReactionByPost = async (req, res, next) => {
   try {
     const db = await getDB();
-    const userId = parseInt(req.params.uid, 10);
+    const { authUserId, error } = validateAuthenticatedActor(req, req.params.uid);
     const postId = parseInt(req.params.pid, 10);
 
-    if (isNaN(userId)) {
-      return next(
-        new AppError({
-          code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
-          status: 400,
-          details: { param: req.params.uid },
-        })
-      );
+    if (error) {
+      return next(error);
     }
 
     if (isNaN(postId)) {
@@ -432,7 +457,7 @@ export const getMyReactionByPost = async (req, res, next) => {
 
     const [rows] = await db.query(
       "SELECT reaction_type FROM post_reactions WHERE user_id = ? AND post_id = ?",
-      [userId, postId]
+      [authUserId, postId]
     );
 
     // 🟡 No existe reacción
@@ -442,7 +467,7 @@ export const getMyReactionByPost = async (req, res, next) => {
         message: "El usuario no ha reaccionado a este post",
         data: {
           reaction: null,
-          userId,
+          userId: authUserId,
           postId,
         },
       });
@@ -456,7 +481,7 @@ export const getMyReactionByPost = async (req, res, next) => {
       message: "Reacción obtenida",
       data: {
         reaction: currentReaction,
-        userId,
+        userId: authUserId,
         postId,
       },
     });
@@ -478,18 +503,11 @@ export const getMyReactionByPost = async (req, res, next) => {
 export const getMyReactionByComment = async (req, res, next) => {
   try {
     const db = await getDB();
-    const userId = parseInt(req.params.uid, 10);
+    const { authUserId, error } = validateAuthenticatedActor(req, req.params.uid);
     const commentId = parseInt(req.params.cid, 10);
 
-    if (isNaN(userId)) {
-      return next(
-        new AppError({
-          code: "USER_ID_INVALID",
-          message: "Invalid or missing user ID",
-          status: 400,
-          details: { param: req.params.uid },
-        })
-      );
+    if (error) {
+      return next(error);
     }
 
     if (isNaN(commentId)) {
@@ -505,7 +523,7 @@ export const getMyReactionByComment = async (req, res, next) => {
 
     const [rows] = await db.query(
       "SELECT reaction_type FROM comment_reactions WHERE user_id = ? AND comment_id = ?",
-      [userId, commentId]
+      [authUserId, commentId]
     );
 
     // 🟡 No existe reacción
@@ -515,7 +533,7 @@ export const getMyReactionByComment = async (req, res, next) => {
         message: "El usuario no ha reaccionado a este comentario",
         data: {
           reaction: null,
-          userId,
+          userId: authUserId,
           commentId,
         },
       });
@@ -529,7 +547,7 @@ export const getMyReactionByComment = async (req, res, next) => {
       message: "Reacción obtenida",
       data: {
         reaction: currentReaction,
-        userId,
+        userId: authUserId,
         commentId,
       },
     });

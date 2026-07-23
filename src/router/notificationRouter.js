@@ -14,6 +14,6 @@ router.get("/notifications/user", auth, UserNotifications);
 router.patch("/:notificationId/seen", auth, SeenNotification);
 router.patch("/seen-all", auth, SeenAllNotifications);
 router.patch("/seenall", auth, SeenAllNotifications);
-router.post("/notification", Arrivednotification);
+router.post("/notification", auth, Arrivednotification);
 
 export default router;

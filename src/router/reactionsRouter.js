@@ -8,7 +8,7 @@ router.post('/toggleReaction/:userId/:postId', auth,toggleReactionPost);
 router.get('/reactionsPost/:postId', getReactionsByPost);
 router.post('/toggleReactionComment/:userId/:commentId', auth,toggleReactionComment)
 router.get('/reactionComment/:commentId', getReactionsByComment)
-router.get('/:uid/:pid/byUserInPost', getMyReactionByPost)
-router.get('/:uid/:cid/byUserInComment', getMyReactionByComment)
+router.get('/:uid/:pid/byUserInPost', auth, getMyReactionByPost)
+router.get('/:uid/:cid/byUserInComment', auth, getMyReactionByComment)
 
 export default router;

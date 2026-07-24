@@ -183,11 +183,18 @@ export const getFollowingFeedPosts = async (
                 p.content,
                 p.image_url,
                 p.post_type,
+                CASE
+                    WHEN pp.post_id IS NULL THEN 0
+                    ELSE 1
+                END AS is_pinned,
                 p.created_at,
                 u.user_name,
                 u.avatar_url
             FROM posts p
             JOIN users u ON u.user_id = p.user_id
+            LEFT JOIN pinned_posts pp
+                ON pp.post_id = p.post_id
+               AND pp.user_id = p.user_id
             WHERE (
                     p.user_id = ?
                OR p.user_id IN (

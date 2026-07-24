@@ -1,8 +1,27 @@
-import {closeDB, connectDB} from '../src/config/db.js';
+import {closeDB, connectDB, getDB} from '../src/config/db.js';
 
 beforeAll(async () => {
     process.env.NODE_ENV = "test";
     await connectDB();
+    const db = getDB();
+
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS pinned_posts (
+            user_id INT NOT NULL,
+            post_id INT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, post_id)
+        )
+    `);
+
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS saved_posts (
+            user_id INT NOT NULL,
+            post_id INT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, post_id)
+        )
+    `);
 })
 import tester from 'supertest';
 import app from '../src/app.js';

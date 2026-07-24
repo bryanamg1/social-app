@@ -123,6 +123,8 @@ Tablas de mensajería implementadas:
 - `messages`
 - `password_reset_tokens` (manual, para recuperacion de contrasena)
 - `user_projects` (manual, para proyectos de perfil)
+- `saved_posts` (manual, para posts guardados)
+- `pinned_posts` (manual, para posts fijados)
 
 Relación resumida:
 
@@ -174,6 +176,14 @@ Aplicar el script versionado en `./post-intent-types.sql` antes de usar filtros 
 SQL manual requerido para proyectos de perfil:
 
 Aplicar el script versionado en `./user-profile-projects.sql` antes de usar CRUD de proyectos y sugerencias enriquecidas.
+
+SQL manual requerido para posts guardados:
+
+Aplicar el script versionado en `./saved-posts.sql` antes de usar la coleccion de `saved posts`.
+
+SQL manual requerido para posts fijados:
+
+Aplicar el script versionado en `./pinned-posts.sql` antes de usar `pinned posts` en perfiles y colecciones guardadas.
 
 SQL manual requerido para Google Sign-In:
 
@@ -295,21 +305,33 @@ Posts:
 - `GET /api/posts/allpost`
 - `GET /api/posts/postByUserId/:id`
 - `GET /api/posts/postById/:id`
+- `PATCH /api/posts/:postId`
+- `GET /api/posts/saved`
+- `GET /api/posts/saved/ids`
+- `POST /api/posts/:postId/save`
+- `DELETE /api/posts/:postId/save`
+- `PATCH /api/posts/:postId/pin`
 - `DELETE /api/posts/removePost/:id`
 
 Notas de seguridad para rutas autenticadas:
 
 - `POST /api/posts` usa el usuario autenticado en JWT
+- `PATCH /api/posts/:postId` valida propiedad real antes de editar
+- `PATCH /api/posts/:postId/pin` valida propiedad real antes de fijar o desfijar
+- `GET /api/posts/saved`, `GET /api/posts/saved/ids`, `POST /api/posts/:postId/save` y `DELETE /api/posts/:postId/save` operan sobre el usuario autenticado
 - `DELETE /api/posts/removePost/:id` valida propiedad real de la publicacion antes de borrar
 
 Comentarios:
 
 - `POST /api/comments/:postId`
 - `GET /api/comments/readComment/:postId`
+- `PATCH /api/comments/:commentId`
+- `DELETE /api/comments/:commentId`
 
 Notas de seguridad:
 
 - `POST /api/comments/:postId` usa el usuario autenticado en JWT
+- `PATCH /api/comments/:commentId` y `DELETE /api/comments/:commentId` validan propiedad real del comentario
 
 Reacciones:
 

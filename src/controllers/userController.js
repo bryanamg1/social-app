@@ -33,6 +33,12 @@ import {
     getProjectsByUserId,
     updateProject,
 } from "../service/profileProjectsService.js";
+import {
+    canViewUserProfile,
+    getUserPrivacySettings,
+    normalizePrivacySettingsInput,
+    updateUserPrivacySettings,
+} from "../service/privacySettingsService.js";
 import { getPostTypeInsightsByUserId } from "../service/postInsightsService.js";
 import { buildNormalizedProjectPayload } from "../utils/profileProjects.js";
 import { getAuthenticatedUserId, isSameUser } from "../utils/authHelpers.js";
@@ -89,9 +95,29 @@ export const profile = async (req,res,next)=>{
         );
     }
 
-    const [projects, postInsights] = await Promise.all([
+    const canViewProfile = await canViewUserProfile(db, {
+        viewerUserId: authUserId,
+        targetUserId: userId,
+    });
+
+    if (!canViewProfile) {
+        return next(
+            new AppError({
+                code: "PROFILE_PRIVATE",
+                message: "Este perfil solo esta disponible para seguidores",
+                status: 403,
+                details: {
+                    userId,
+                    viewerUserId: authUserId,
+                },
+            })
+        );
+    }
+
+    const [projects, postInsights, privacySettings] = await Promise.all([
         getProjectsByUserId(db, userId),
         getPostTypeInsightsByUserId(db, userId),
+        getUserPrivacySettings(db, userId),
     ]);
     const { user_id, user_name, email, bio, location, avatar_url, created_at } = users[0];
 
@@ -107,6 +133,7 @@ export const profile = async (req,res,next)=>{
             avatar_url,
             created_at,
             projects,
+            privacy_settings: privacySettings,
             post_type_summary: postInsights.summary,
             dominant_post_type: postInsights.dominant_post_type,
             dominant_post_type_count: postInsights.dominant_post_type_count,
@@ -897,6 +924,94 @@ catch (error) {
     })
 );
 }
+};
+
+export const getMyPrivacySettings = async (req, res, next) => {
+    try {
+        const db = getDB();
+        const userId = getAuthenticatedUserId(req);
+
+        if (!userId) {
+            return next(
+                new AppError({
+                    code: "UNAUTHORIZED",
+                    message: "Usuario no autenticado",
+                    status: 401,
+                })
+            );
+        }
+
+        const privacySettings = await getUserPrivacySettings(db, userId);
+
+        return res.status(200).json({
+            ok: true,
+            message: "Preferencias de privacidad obtenidas",
+            data: privacySettings,
+        });
+    } catch (error) {
+        return next(
+            new AppError({
+                code: "PRIVACY_SETTINGS_READ_FAILED",
+                message: "No se pudieron obtener las preferencias de privacidad",
+                status: 500,
+                details: error?.code || error?.message || null,
+            })
+        );
+    }
+};
+
+export const updateMyPrivacySettings = async (req, res, next) => {
+    try {
+        const db = getDB();
+        const userId = getAuthenticatedUserId(req);
+
+        if (!userId) {
+            return next(
+                new AppError({
+                    code: "UNAUTHORIZED",
+                    message: "Usuario no autenticado",
+                    status: 401,
+                })
+            );
+        }
+
+        const normalizedSettings = normalizePrivacySettingsInput(req.body);
+
+        if (
+            !normalizedSettings.profile_visibility ||
+            !normalizedSettings.direct_message_permission
+        ) {
+            return next(
+                new AppError({
+                    code: "PRIVACY_SETTINGS_INVALID",
+                    message: "Las preferencias de privacidad no son validas",
+                    status: 400,
+                    details: req.body ?? null,
+                })
+            );
+        }
+
+        const privacySettings = await updateUserPrivacySettings(
+            db,
+            userId,
+            normalizedSettings
+        );
+
+        return res.status(200).json({
+            ok: true,
+            message: "Preferencias de privacidad actualizadas",
+            data: privacySettings,
+        });
+    } catch (error) {
+        return next(
+            new AppError({
+                code: "PRIVACY_SETTINGS_UPDATE_FAILED",
+                message: "No se pudieron actualizar las preferencias de privacidad",
+                status: 500,
+                details: error?.code || error?.message || null,
+            })
+        );
+    }
 };
 
 export const setImage = async (req, res,next) => {

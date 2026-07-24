@@ -9,6 +9,7 @@ import followsrouter from "./router/followsRouter.js";
 import imageRouter from "./router/imageRouter.js";
 import notificationrouter from "./router/notificationRouter.js";
 import conversationsRouter from "./router/conversationsRouter.js";
+import reportRouter from "./router/reportRouter.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { rateLimitGlobal } from "./middleware/rateLimit.js";
 import { requestIdMiddleware } from "./middleware/requestId.js";
@@ -87,6 +88,7 @@ app.use("/api/conversations", conversationsRouter);
 app.use("/api/comments", commentsRouter);
 app.use("/api/reactions", reactionsRouter);
 app.use("/api/notifications", notificationrouter);
+app.use("/api/reports", reportRouter);
 
 app.use(errorHandler);
 

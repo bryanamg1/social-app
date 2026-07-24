@@ -10,6 +10,7 @@ import {
   getUserConversations,
 } from "../service/conversationsService.js";
 import { hasAnyUserBlock } from "../service/blocksService.js";
+import { canSendDirectMessage } from "../service/privacySettingsService.js";
 import { insertMessage } from "../service/messageService.js";
 import { AppError } from "../utils/utils.js";
 import { getIO } from "../sockets/sockets.js";
@@ -100,6 +101,22 @@ export const createOrGetConversations = async (req, res, next) => {
         new AppError({
           code: "BLOCK_RELATIONSHIP_FORBIDDEN",
           message: "No puedes iniciar una conversacion por una relacion de bloqueo activa",
+          status: 403,
+          details: { userId, otherUserId },
+        })
+      );
+    }
+
+    const canSendMessage = await canSendDirectMessage(db, {
+      senderUserId: userId,
+      recipientUserId: otherUserId,
+    });
+
+    if (!canSendMessage) {
+      return next(
+        new AppError({
+          code: "DIRECT_MESSAGE_FORBIDDEN",
+          message: "Este usuario solo acepta mensajes directos de seguidores",
           status: 403,
           details: { userId, otherUserId },
         })

@@ -120,6 +120,42 @@ export const registerMessagesSocket = (io) => {
       }
     });
 
+    socket.on("messages:typing", async ({ conversation_id, is_typing }) => {
+      try {
+        const conversationId = parseInt(conversation_id, 10);
+        const userId = getSocketUserId(socket);
+
+        if (isNaN(conversationId) || isNaN(userId)) {
+          return socket.emit("messages:error", {
+            code: "TYPING_PARAMS_INVALID",
+            message: "Invalid conversation_id or authenticated user",
+          });
+        }
+
+        const allowed = await userBelongsToConversation(db, conversationId, userId);
+
+        if (!allowed) {
+          return socket.emit("messages:error", {
+            code: "TYPING_FORBIDDEN",
+            message: "No perteneces a esta conversacion",
+          });
+        }
+
+        socket.to(`conv:${conversationId}`).emit("messages:typing", {
+          conversation_id: conversationId,
+          user_id: userId,
+          is_typing: Boolean(is_typing),
+        });
+      } catch (error) {
+        console.error("messages:typing error:", error);
+
+        socket.emit("messages:error", {
+          code: "MESSAGE_TYPING_FAILED",
+          message: "Error al sincronizar el estado de escritura",
+        });
+      }
+    });
+
     socket.on("disconnect", () => {
       console.log("Usuario desconectado de /messages");
     });

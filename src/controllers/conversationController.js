@@ -3,17 +3,51 @@ import {
   findConversationBetweenTwoUsers,
   createConversation,
   addUsersToConversation,
+  getConversationRecipientUserId,
   markConversationMessagesRead,
   userBelongsToConversation,
   getMessagesByConversation,
   getUserConversations,
 } from "../service/conversationsService.js";
+import { hasAnyUserBlock } from "../service/blocksService.js";
 import { insertMessage } from "../service/messageService.js";
 import { AppError } from "../utils/utils.js";
 import { getIO } from "../sockets/sockets.js";
 
 const getAuthenticatedUserId = (req) => {
   return Number(req.user?.user_id ?? req.user?.id ?? req.user?.user?.id);
+};
+
+const ensureConversationAvailable = async (db, conversationId, userId) => {
+  const recipientUserId = await getConversationRecipientUserId(
+    db,
+    conversationId,
+    userId
+  );
+
+  if (!recipientUserId) {
+    return;
+  }
+
+  const hasBlock = await hasAnyUserBlock(db, {
+    currentUserId: userId,
+    targetUserId: recipientUserId,
+  });
+
+  if (!hasBlock) {
+    return;
+  }
+
+  throw new AppError({
+    code: "BLOCK_RELATIONSHIP_FORBIDDEN",
+    message: "La conversacion no esta disponible por una relacion de bloqueo activa",
+    status: 403,
+    details: {
+      conversationId,
+      userId,
+      recipientUserId,
+    },
+  });
 };
 
 export const createOrGetConversations = async (req, res, next) => {
@@ -51,6 +85,22 @@ export const createOrGetConversations = async (req, res, next) => {
           code: "USER_IDS_MUST_BE_DIFFERENT",
           message: "User IDs must be different",
           status: 400,
+          details: { userId, otherUserId },
+        })
+      );
+    }
+
+    const hasBlock = await hasAnyUserBlock(db, {
+      currentUserId: userId,
+      targetUserId: otherUserId,
+    });
+
+    if (hasBlock) {
+      return next(
+        new AppError({
+          code: "BLOCK_RELATIONSHIP_FORBIDDEN",
+          message: "No puedes iniciar una conversacion por una relacion de bloqueo activa",
+          status: 403,
           details: { userId, otherUserId },
         })
       );
@@ -168,6 +218,8 @@ export const getConversationsMessages = async (req, res, next) => {
       );
     }
 
+    await ensureConversationAvailable(db, conversationId, userId);
+
     const messages = await getMessagesByConversation(
       db,
       conversationId,
@@ -259,6 +311,8 @@ export const sendMessageRest = async (req, res, next) => {
       );
     }
 
+    await ensureConversationAvailable(db, parsedConversationId, senderId);
+
     const message = await insertMessage(
       db,
       parsedConversationId,
@@ -324,6 +378,8 @@ export const markConversationRead = async (req, res, next) => {
         })
       );
     }
+
+    await ensureConversationAvailable(db, conversationId, userId);
 
     const result = await markConversationMessagesRead(db, conversationId, userId);
 

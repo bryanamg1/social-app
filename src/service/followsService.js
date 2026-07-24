@@ -13,6 +13,24 @@ const normalizeSuggestionValue = (value) => {
     return `${value ?? ""}`.trim();
 };
 
+const isBlocksSchemaMissing = (error) => {
+    return (
+        error?.code === "ER_NO_SUCH_TABLE" ||
+        String(error?.message ?? "").includes("blocked_users")
+    );
+};
+
+const buildBlockClause = (leftField, rightField) => {
+    return `
+      AND NOT EXISTS (
+          SELECT 1
+          FROM blocked_users bu
+          WHERE (bu.blocker_id = ${leftField} AND bu.blocked_id = ${rightField})
+             OR (bu.blocker_id = ${rightField} AND bu.blocked_id = ${leftField})
+      )
+    `;
+};
+
 export const normalizeSuggestedUser = (user) => {
     const projectCount = Number(user?.project_count) || 0;
     const rawDominantPostType = normalizeSuggestionValue(
@@ -56,8 +74,7 @@ export const getSuggestedUsers = async (db, { currentUserId, limit }) => {
         ...FEED_POST_TYPES_ORDER,
     ];
 
-    const [rows] = await database.query(
-        `
+    const query = `
             SELECT
                 u.user_id,
                 u.user_name,
@@ -148,17 +165,34 @@ export const getSuggestedUsers = async (db, { currentUserId, limit }) => {
                   FROM follows
                   WHERE follower_id = ?
               )
+              ${buildBlockClause("u.user_id", "?")}
             ORDER BY followers_count DESC, project_count DESC, u.created_at DESC
             LIMIT ?
-        `,
-        [
-            ...statusPriorityParams,
-            ...postTypePriorityParams,
-            currentUserId,
-            currentUserId,
-            normalizedLimit,
-        ]
-    );
+        `;
+    const params = [
+        ...statusPriorityParams,
+        ...postTypePriorityParams,
+        currentUserId,
+        currentUserId,
+        currentUserId,
+        currentUserId,
+        normalizedLimit,
+    ];
+    let rows;
+
+    try {
+        [rows] = await database.query(query, params);
+    } catch (error) {
+        if (!isBlocksSchemaMissing(error)) {
+            throw error;
+        }
+
+        const [fallbackRows] = await database.query(
+            query.replace(buildBlockClause("u.user_id", "?"), ""),
+            [...statusPriorityParams, ...postTypePriorityParams, currentUserId, currentUserId, normalizedLimit]
+        );
+        rows = fallbackRows;
+    }
 
     return rows.map(normalizeSuggestedUser);
 };
@@ -168,15 +202,20 @@ export const getFollowingFeedPosts = async (
     { currentUserId, limit, offset, postType = null }
 ) => {
     const database = db || getDB();
-    const params = [currentUserId, currentUserId];
     const postTypeClause = postType ? " AND p.post_type = ?" : "";
+    const blockClause = buildBlockClause("p.user_id", "?");
+    const queryParams = [
+        currentUserId,
+        currentUserId,
+        currentUserId,
+        currentUserId,
+    ];
 
     if (postType) {
-        params.push(postType);
+        queryParams.push(postType);
     }
 
-    const [rows] = await database.query(
-        `
+    const query = `
             SELECT
                 p.post_id,
                 p.user_id,
@@ -203,12 +242,32 @@ export const getFollowingFeedPosts = async (
                     WHERE follower_id = ?
                )
             )
+              ${blockClause}
               ${postTypeClause}
             ORDER BY p.created_at DESC
             LIMIT ? OFFSET ?
-        `,
-        [...params, limit, offset]
-    );
+        `;
+    let rows;
+
+    try {
+        [rows] = await database.query(query, [...queryParams, limit, offset]);
+    } catch (error) {
+        if (!isBlocksSchemaMissing(error)) {
+            throw error;
+        }
+
+        const [fallbackRows] = await database.query(
+            query.replace(blockClause, ""),
+            [
+                currentUserId,
+                currentUserId,
+                ...(postType ? [postType] : []),
+                limit,
+                offset,
+            ]
+        );
+        rows = fallbackRows;
+    }
 
     return rows;
 };
@@ -218,15 +277,20 @@ export const countFollowingFeedPosts = async (
     { currentUserId, postType = null }
 ) => {
     const database = db || getDB();
-    const params = [currentUserId, currentUserId];
     const postTypeClause = postType ? " AND post_type = ?" : "";
+    const blockClause = buildBlockClause("user_id", "?");
+    const queryParams = [
+        currentUserId,
+        currentUserId,
+        currentUserId,
+        currentUserId,
+    ];
 
     if (postType) {
-        params.push(postType);
+        queryParams.push(postType);
     }
 
-    const [rows] = await database.query(
-        `
+    const query = `
             SELECT COUNT(*) AS total
             FROM posts
             WHERE (
@@ -237,10 +301,24 @@ export const countFollowingFeedPosts = async (
                     WHERE follower_id = ?
                )
             )
+              ${blockClause}
               ${postTypeClause}
-        `,
-        params
-    );
+        `;
+    let rows;
+
+    try {
+        [rows] = await database.query(query, queryParams);
+    } catch (error) {
+        if (!isBlocksSchemaMissing(error)) {
+            throw error;
+        }
+
+        const [fallbackRows] = await database.query(
+            query.replace(blockClause, ""),
+            [currentUserId, currentUserId, ...(postType ? [postType] : [])]
+        );
+        rows = fallbackRows;
+    }
 
     return Number(rows?.[0]?.total) || 0;
 };

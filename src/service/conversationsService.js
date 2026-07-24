@@ -13,6 +13,13 @@ export const findConversationBetweenTwoUsers = async (db, userA, userB) => {
   return rows[0]?.conversation_id || null;
 };
 
+const isBlocksSchemaMissing = (error) => {
+  return (
+    error?.code === "ER_NO_SUCH_TABLE" ||
+    String(error?.message ?? "").includes("blocked_users")
+  );
+};
+
 const isReadStateSchemaMissing = (error) => {
   return (
     error?.code === "ER_BAD_FIELD_ERROR" ||
@@ -103,116 +110,137 @@ export const getMessagesByConversation = async (db, conversationId, limit = 50, 
 };
 
 export const getUserConversations = async (db, userId) => {
-  try {
-    const [rows] = await db.query(
-      `
-      SELECT
-        c.conversation_id,
-        c.created_at,
-        c.modified_at,
-        participant.user_id AS participant_user_id,
-        participant.user_name AS participant_user_name,
-        participant.email AS participant_email,
-        participant.avatar_url AS participant_avatar_url,
-        (
-          SELECT m.content
-          FROM messages m
-          WHERE m.conversation_id = c.conversation_id
-          ORDER BY m.created_at DESC
-          LIMIT 1
-        ) AS last_message,
-        (
-          SELECT m.created_at
-          FROM messages m
-          WHERE m.conversation_id = c.conversation_id
-          ORDER BY m.created_at DESC
-          LIMIT 1
-        ) AS last_message_at,
-        (
-          SELECT m.sender_id
-          FROM messages m
-          WHERE m.conversation_id = c.conversation_id
-          ORDER BY m.created_at DESC
-          LIMIT 1
-        ) AS last_message_sender_id,
-        (
-          SELECT m.read_at
-          FROM messages m
-          WHERE m.conversation_id = c.conversation_id
-          ORDER BY m.created_at DESC
-          LIMIT 1
-        ) AS last_message_read_at,
-        (
-          SELECT COUNT(*)
-          FROM messages m
-          WHERE m.conversation_id = c.conversation_id
-            AND m.sender_id <> ?
-            AND m.read_at IS NULL
-        ) AS unread_count
-      FROM conversations c
-      JOIN conversation_users cu
-        ON cu.conversation_id = c.conversation_id
-      LEFT JOIN conversation_users participant_cu
-        ON participant_cu.conversation_id = c.conversation_id
-        AND participant_cu.user_id <> cu.user_id
-      LEFT JOIN users participant
-        ON participant.user_id = participant_cu.user_id
-      WHERE cu.user_id = ?
-      ORDER BY COALESCE(last_message_at, c.modified_at, c.created_at) DESC
-      `,
-      [userId, userId]
-    );
+  const blockedUsersClause = `
+    AND NOT EXISTS (
+      SELECT 1
+      FROM blocked_users bu
+      WHERE (bu.blocker_id = cu.user_id AND bu.blocked_id = participant.user_id)
+         OR (bu.blocker_id = participant.user_id AND bu.blocked_id = cu.user_id)
+    )
+  `;
+  const baseSelect = `
+    SELECT
+      c.conversation_id,
+      c.created_at,
+      c.modified_at,
+      participant.user_id AS participant_user_id,
+      participant.user_name AS participant_user_name,
+      participant.email AS participant_email,
+      participant.avatar_url AS participant_avatar_url,
+      (
+        SELECT m.content
+        FROM messages m
+        WHERE m.conversation_id = c.conversation_id
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_message,
+      (
+        SELECT m.created_at
+        FROM messages m
+        WHERE m.conversation_id = c.conversation_id
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_message_at
+  `;
+  const readStateSelect = `,
+      (
+        SELECT m.sender_id
+        FROM messages m
+        WHERE m.conversation_id = c.conversation_id
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_message_sender_id,
+      (
+        SELECT m.read_at
+        FROM messages m
+        WHERE m.conversation_id = c.conversation_id
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_message_read_at,
+      (
+        SELECT COUNT(*)
+        FROM messages m
+        WHERE m.conversation_id = c.conversation_id
+          AND m.sender_id <> ?
+          AND m.read_at IS NULL
+      ) AS unread_count
+  `;
+  const fromSql = `
+    FROM conversations c
+    JOIN conversation_users cu
+      ON cu.conversation_id = c.conversation_id
+    LEFT JOIN conversation_users participant_cu
+      ON participant_cu.conversation_id = c.conversation_id
+      AND participant_cu.user_id <> cu.user_id
+    LEFT JOIN users participant
+      ON participant.user_id = participant_cu.user_id
+    WHERE cu.user_id = ?
+  `;
+  const orderSql =
+    " ORDER BY COALESCE(last_message_at, c.modified_at, c.created_at) DESC";
 
+  const runQuery = async ({ includeReadState, includeBlockFilter }) => {
+    const query = `
+      ${baseSelect}
+      ${includeReadState ? readStateSelect : ""}
+      ${fromSql}
+      ${includeBlockFilter ? blockedUsersClause : ""}
+      ${orderSql}
+    `;
+    const params = includeReadState ? [userId, userId] : [userId];
+    const [rows] = await db.query(query, params);
     return rows;
-  } catch (error) {
-    if (!isReadStateSchemaMissing(error)) {
-      throw error;
-    }
+  };
 
-    const [rows] = await db.query(
-      `
-      SELECT
-        c.conversation_id,
-        c.created_at,
-        c.modified_at,
-        participant.user_id AS participant_user_id,
-        participant.user_name AS participant_user_name,
-        participant.email AS participant_email,
-        participant.avatar_url AS participant_avatar_url,
-        (
-          SELECT m.content
-          FROM messages m
-          WHERE m.conversation_id = c.conversation_id
-          ORDER BY m.created_at DESC
-          LIMIT 1
-        ) AS last_message,
-        (
-          SELECT m.created_at
-          FROM messages m
-          WHERE m.conversation_id = c.conversation_id
-          ORDER BY m.created_at DESC
-          LIMIT 1
-        ) AS last_message_at
-      FROM conversations c
-      JOIN conversation_users cu
-        ON cu.conversation_id = c.conversation_id
-      LEFT JOIN conversation_users participant_cu
-        ON participant_cu.conversation_id = c.conversation_id
-        AND participant_cu.user_id <> cu.user_id
-      LEFT JOIN users participant
-        ON participant.user_id = participant_cu.user_id
-      WHERE cu.user_id = ?
-      ORDER BY COALESCE(last_message_at, c.modified_at, c.created_at) DESC
-      `,
-      [userId]
-    );
-
+  const normalizeLegacyRows = (rows) => {
     return rows.map((row) => ({
       ...row,
       last_message_sender_id: null,
       last_message_read_at: null,
       unread_count: 0,
     }));
+  };
+
+  try {
+    return await runQuery({ includeReadState: true, includeBlockFilter: true });
+  } catch (error) {
+    if (isBlocksSchemaMissing(error)) {
+      try {
+        return await runQuery({ includeReadState: true, includeBlockFilter: false });
+      } catch (fallbackError) {
+        if (!isReadStateSchemaMissing(fallbackError)) {
+          throw fallbackError;
+        }
+
+        const rows = await runQuery({
+          includeReadState: false,
+          includeBlockFilter: false,
+        });
+        return normalizeLegacyRows(rows);
+      }
+    }
+
+    if (!isReadStateSchemaMissing(error)) {
+      throw error;
+    }
+
+    try {
+      const rows = await runQuery({
+        includeReadState: false,
+        includeBlockFilter: true,
+      });
+      return normalizeLegacyRows(rows);
+    } catch (fallbackError) {
+      if (!isBlocksSchemaMissing(fallbackError)) {
+        throw fallbackError;
+      }
+
+      const rows = await runQuery({
+        includeReadState: false,
+        includeBlockFilter: false,
+      });
+      return normalizeLegacyRows(rows);
+    }
   }
 };
 

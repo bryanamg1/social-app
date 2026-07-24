@@ -45,6 +45,13 @@ describe("Authentication middleware", () => {
         expect(res.status).toBe(200);
         expect(res.body).toHaveProperty("ok", true);
         expect(res.body).toHaveProperty("data");
+        expect(res.body.data).toEqual(
+            expect.objectContaining({
+                isFollowing: expect.any(Boolean),
+                isBlocked: expect.any(Boolean),
+                isBlockedByUser: expect.any(Boolean),
+            })
+        );
     });
 
     test("profile route returns the requested user profile, not the authenticated user profile", async () => {

@@ -5,6 +5,9 @@ import {
   userBelongsToConversation,
 } from "../service/conversationsService.js";
 import {
+  hasAnyUserBlock,
+} from "../service/blocksService.js";
+import {
   createNotification,
   NOTIFICATION_TYPES,
 } from "../service/notificationService.js";
@@ -36,6 +39,25 @@ export const registerMessagesSocket = (io) => {
           return socket.emit("messages:error", {
             code: "JOIN_FORBIDDEN",
             message: "No perteneces a esta conversacion",
+          });
+        }
+
+        const recipientUserId = await getConversationRecipientUserId(
+          db,
+          conversationId,
+          userId
+        );
+        const hasBlock = recipientUserId
+          ? await hasAnyUserBlock(db, {
+              currentUserId: userId,
+              targetUserId: recipientUserId,
+            })
+          : false;
+
+        if (hasBlock) {
+          return socket.emit("messages:error", {
+            code: "BLOCK_RELATIONSHIP_FORBIDDEN",
+            message: "La conversacion no esta disponible por una relacion de bloqueo activa",
           });
         }
 
@@ -84,12 +106,26 @@ export const registerMessagesSocket = (io) => {
           });
         }
 
-        const message = await insertMessage(db, conversationId, senderId, text);
         const recipientUserId = await getConversationRecipientUserId(
           db,
           conversationId,
           senderId
         );
+        const hasBlock = recipientUserId
+          ? await hasAnyUserBlock(db, {
+              currentUserId: senderId,
+              targetUserId: recipientUserId,
+            })
+          : false;
+
+        if (hasBlock) {
+          return socket.emit("messages:error", {
+            code: "BLOCK_RELATIONSHIP_FORBIDDEN",
+            message: "No puedes enviar mensajes por una relacion de bloqueo activa",
+          });
+        }
+
+        const message = await insertMessage(db, conversationId, senderId, text);
 
         if (recipientUserId) {
           await createNotification(
@@ -138,6 +174,25 @@ export const registerMessagesSocket = (io) => {
           return socket.emit("messages:error", {
             code: "TYPING_FORBIDDEN",
             message: "No perteneces a esta conversacion",
+          });
+        }
+
+        const recipientUserId = await getConversationRecipientUserId(
+          db,
+          conversationId,
+          userId
+        );
+        const hasBlock = recipientUserId
+          ? await hasAnyUserBlock(db, {
+              currentUserId: userId,
+              targetUserId: recipientUserId,
+            })
+          : false;
+
+        if (hasBlock) {
+          return socket.emit("messages:error", {
+            code: "BLOCK_RELATIONSHIP_FORBIDDEN",
+            message: "No puedes sincronizar escritura por una relacion de bloqueo activa",
           });
         }
 

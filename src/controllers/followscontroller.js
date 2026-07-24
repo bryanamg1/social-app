@@ -4,6 +4,12 @@ import {
   NOTIFICATION_TYPES,
 } from "../service/notificationService.js";
 import {
+  blockUserById,
+  getUserBlockStatus,
+  hasAnyUserBlock,
+  unblockUserById,
+} from "../service/blocksService.js";
+import {
   countFollowingFeedPosts,
   getFollowingFeedPosts,
   getSuggestedUsers,
@@ -44,19 +50,26 @@ export const getFollowStatus = async (req, res, next) => {
         ok: true,
         data: {
           isFollowing: false,
+          isBlocked: false,
+          isBlockedByUser: false,
         },
       });
     }
 
-    const [following] = await db.query(
-      "SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = ? LIMIT 1",
-      [currentUserId, targetUserId]
-    );
+    const [[following], blockStatus] = await Promise.all([
+      db.query(
+        "SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = ? LIMIT 1",
+        [currentUserId, targetUserId]
+      ),
+      getUserBlockStatus(db, { currentUserId, targetUserId }),
+    ]);
 
     return res.status(200).json({
       ok: true,
       data: {
         isFollowing: following.length > 0,
+        isBlocked: blockStatus.isBlocked,
+        isBlockedByUser: blockStatus.isBlockedByUser,
       },
     });
   } catch (error) {
@@ -74,11 +87,49 @@ export const getFollowStatus = async (req, res, next) => {
 export const followUser = async (req, res, next) =>{
     try{
         const db = getDB();
-        const followerid = req.params.id;
-        const followidUser = req.user.user_id;
+        const followerid = Number(req.params.id);
+        const followidUser = Number(req.user.user_id);
+
+        if (!followidUser) {
+            return next(
+                new AppError({
+                    code:"UNAUTHORIZED",
+                    message:"Usuario no autenticado",
+                    status:401
+                })
+            );
+        }
+
+        if (Number.isNaN(followerid)) {
+            return next(
+                new AppError({
+                    code:"USER_ID_INVALID",
+                    message:"ID de usuario invalido",
+                    status:400,
+                    details: { param: req.params.id },
+                })
+            );
+        }
+
         if (Number(followidUser) === Number(followerid)) {
             return res.status(400).json({msg:"No puedes seguirte"});
         }
+
+        const hasBlock = await hasAnyUserBlock(db, {
+            currentUserId: followidUser,
+            targetUserId: followerid,
+        });
+
+        if (hasBlock) {
+            return next(
+                new AppError({
+                    code:"BLOCK_RELATIONSHIP_FORBIDDEN",
+                    message:"No puedes seguir a este usuario por una relacion de bloqueo activa",
+                    status:403
+                })
+            );
+        }
+
         const [userExists] = await db.query("SELECT * FROM users WHERE user_id = ?",
             [followerid]);
 
@@ -125,6 +176,147 @@ export const followUser = async (req, res, next) =>{
             })
         );
     }
+};
+
+export const blockUser = async (req, res, next) => {
+  try {
+    const db = getDB();
+    const blockerId = Number(req.user?.user_id);
+    const blockedId = Number(req.params.id);
+
+    if (!blockerId) {
+      return next(
+        new AppError({
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
+        })
+      );
+    }
+
+    if (Number.isNaN(blockedId)) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "ID de usuario invalido",
+          status: 400,
+          details: { param: req.params.id },
+        })
+      );
+    }
+
+    if (blockerId === blockedId) {
+      return next(
+        new AppError({
+          code: "INVALID_OPERATION",
+          message: "No puedes bloquearte a ti mismo",
+          status: 400,
+        })
+      );
+    }
+
+    const [userExists] = await db.query("SELECT user_id FROM users WHERE user_id = ?", [
+      blockedId,
+    ]);
+
+    if (!userExists?.length) {
+      return next(
+        new AppError({
+          code: "USER_NOT_FOUND",
+          message: "Este usuario no existe",
+          status: 404,
+          details: { userId: blockedId },
+        })
+      );
+    }
+
+    await blockUserById(db, {
+      blockerId,
+      blockedId,
+    });
+
+    return res.status(200).json({
+      ok: true,
+      message: "Usuario bloqueado correctamente",
+      data: {
+        blocker_id: blockerId,
+        blocked_id: blockedId,
+        isBlocked: true,
+      },
+    });
+  } catch (error) {
+    return next(
+      new AppError({
+        code: "BLOCK_USER_FAILED",
+        message: "No se pudo bloquear al usuario",
+        status: 500,
+        details: error?.message || null,
+      })
+    );
+  }
+};
+
+export const unblockUser = async (req, res, next) => {
+  try {
+    const db = getDB();
+    const blockerId = Number(req.user?.user_id);
+    const blockedId = Number(req.params.id);
+
+    if (!blockerId) {
+      return next(
+        new AppError({
+          code: "UNAUTHORIZED",
+          message: "Usuario no autenticado",
+          status: 401,
+        })
+      );
+    }
+
+    if (Number.isNaN(blockedId)) {
+      return next(
+        new AppError({
+          code: "USER_ID_INVALID",
+          message: "ID de usuario invalido",
+          status: 400,
+          details: { param: req.params.id },
+        })
+      );
+    }
+
+    if (blockerId === blockedId) {
+      return next(
+        new AppError({
+          code: "INVALID_OPERATION",
+          message: "No puedes desbloquearte a ti mismo",
+          status: 400,
+        })
+      );
+    }
+
+    await unblockUserById(db, {
+      blockerId,
+      blockedId,
+    });
+
+    return res.status(200).json({
+      ok: true,
+      message: "Usuario desbloqueado correctamente",
+      data: {
+        blocker_id: blockerId,
+        blocked_id: blockedId,
+        isBlocked: false,
+      },
+    });
+  } catch (error) {
+    return next(
+      new AppError({
+        code: "UNBLOCK_USER_FAILED",
+        message: "No se pudo desbloquear al usuario",
+        status: 500,
+        details: error?.message || null,
+      })
+    );
+  }
 };
 
 export const unfollowUser = async (req, res, next) => {

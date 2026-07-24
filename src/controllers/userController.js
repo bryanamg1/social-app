@@ -52,7 +52,7 @@ export const profile = async (req,res,next)=>{
     const routeUserParam = req.params.id ?? null;
     const userId = routeUserParam ? Number(routeUserParam) : authUserId;
 
-    if (!authUserId) {
+    if (!routeUserParam && !authUserId) {
         return next(
         new AppError({
             code: "UNAUTHORIZED",

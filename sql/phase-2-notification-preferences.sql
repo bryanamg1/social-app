@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS notification_preferences (
+  user_id INT NOT NULL PRIMARY KEY,
+  follow_user TINYINT(1) NOT NULL DEFAULT 1,
+  comment_post TINYINT(1) NOT NULL DEFAULT 1,
+  reaction_post TINYINT(1) NOT NULL DEFAULT 1,
+  reaction_comment TINYINT(1) NOT NULL DEFAULT 1,
+  reply_comment TINYINT(1) NOT NULL DEFAULT 1,
+  repost TINYINT(1) NOT NULL DEFAULT 1,
+  mention_user TINYINT(1) NOT NULL DEFAULT 1,
+  message TINYINT(1) NOT NULL DEFAULT 1,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_notification_preferences_user
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    ON DELETE CASCADE
+);

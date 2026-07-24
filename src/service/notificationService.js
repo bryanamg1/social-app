@@ -1,5 +1,6 @@
 import { getDB } from "../config/db.js";
 import { getIO } from "../sockets/sockets.js";
+import { isNotificationTypeEnabled } from "./notificationPreferencesService.js";
 
 export const NOTIFICATION_TYPES = Object.freeze({
   FOLLOW_USER: "FOLLOW_USER",
@@ -154,6 +155,16 @@ export const createNotification = async (
   }
 
   if (actorUserId !== null && recipientUserId === actorUserId) {
+    return null;
+  }
+
+  const notificationsEnabled = await isNotificationTypeEnabled(
+    db,
+    recipientUserId,
+    normalizedType
+  );
+
+  if (!notificationsEnabled) {
     return null;
   }
 

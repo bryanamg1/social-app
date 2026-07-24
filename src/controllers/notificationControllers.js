@@ -3,7 +3,12 @@ import {
   markallseen,
   markseen,
 } from "../service/notificationService.js";
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from "../service/notificationPreferencesService.js";
 import { AppError } from "../utils/utils.js";
+import { getDB } from "../config/db.js";
 
 export const UserNotifications = async (req, res, next) => {
   try {
@@ -76,6 +81,52 @@ export const SeenAllNotifications = async (req, res, next) => {
       new AppError({
         code: "ALL_NOTIFICATIONS_SEEN_FAILED",
         message: "Error al marcar todas las notificaciones como vistas",
+        status: 500,
+        details: error?.message || null,
+      })
+    );
+  }
+};
+
+export const GetNotificationPreferences = async (req, res, next) => {
+  try {
+    const db = getDB();
+    const userId = req.user.user_id;
+    const preferences = await getNotificationPreferences(db, userId);
+
+    res.status(200).json({
+      ok: true,
+      message: "Preferencias de notificaciones obtenidas",
+      data: preferences,
+    });
+  } catch (error) {
+    return next(
+      new AppError({
+        code: "NOTIFICATION_PREFERENCES_FETCH_FAILED",
+        message: "Error al obtener las preferencias de notificaciones",
+        status: 500,
+        details: error?.message || null,
+      })
+    );
+  }
+};
+
+export const UpdateNotificationPreferences = async (req, res, next) => {
+  try {
+    const db = getDB();
+    const userId = req.user.user_id;
+    const preferences = await updateNotificationPreferences(db, userId, req.body ?? {});
+
+    res.status(200).json({
+      ok: true,
+      message: "Preferencias de notificaciones actualizadas",
+      data: preferences,
+    });
+  } catch (error) {
+    return next(
+      new AppError({
+        code: "NOTIFICATION_PREFERENCES_UPDATE_FAILED",
+        message: "Error al actualizar las preferencias de notificaciones",
         status: 500,
         details: error?.message || null,
       })

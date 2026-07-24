@@ -59,6 +59,22 @@ describe("notification service - phase 2 messaging maturity", () => {
     const db = {
       query: jest
         .fn()
+        .mockResolvedValueOnce([{}])
+        .mockResolvedValueOnce([
+          [
+            {
+              user_id: 2,
+              follow_user: 1,
+              comment_post: 1,
+              reaction_post: 1,
+              reaction_comment: 1,
+              reply_comment: 1,
+              repost: 1,
+              mention_user: 1,
+              message: 1,
+            },
+          ],
+        ])
         .mockResolvedValueOnce([{ insertId: 45 }])
         .mockResolvedValueOnce([
           [
@@ -89,7 +105,7 @@ describe("notification service - phase 2 messaging maturity", () => {
 
     expect(result).toBe(45);
     expect(db.query).toHaveBeenNthCalledWith(
-      1,
+      3,
       expect.stringContaining("INSERT INTO notifications"),
       [2, NOTIFICATION_TYPES.MESSAGE, 13, 7]
     );
@@ -106,6 +122,43 @@ describe("notification service - phase 2 messaging maturity", () => {
     expect(ioMock.emit).toHaveBeenNthCalledWith(2, "notification:count", {
       total: 3,
     });
+  });
+
+  test("createNotification skips persistence when the recipient disabled that notification type", async () => {
+    const ioMock = createIoMock();
+    const db = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce([{}])
+        .mockResolvedValueOnce([
+          [
+            {
+              user_id: 2,
+              follow_user: 1,
+              comment_post: 1,
+              reaction_post: 1,
+              reaction_comment: 1,
+              reply_comment: 1,
+              repost: 1,
+              mention_user: 1,
+              message: 0,
+            },
+          ],
+        ]),
+    };
+
+    const result = await createNotification(
+      2,
+      NOTIFICATION_TYPES.MESSAGE,
+      13,
+      7,
+      db,
+      ioMock.io
+    );
+
+    expect(result).toBeNull();
+    expect(db.query).toHaveBeenCalledTimes(2);
+    expect(ioMock.emit).not.toHaveBeenCalled();
   });
 
   test("markseen updates the notification and broadcasts the new unread count", async () => {

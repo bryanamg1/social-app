@@ -24,7 +24,7 @@ import {
 const router = express.Router()
 
 router.get("/me/profile", auth, profile)
-router.get("/users/:id",auth,profile)
+router.get("/users/:id", profile)
 router.post("/register", rateLimitAuth, register);
 router.post("/login", rateLimitLogin, login);
 router.post("/google", rateLimitAuth, googleAuth);

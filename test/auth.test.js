@@ -59,6 +59,14 @@ describe("Authentication middleware", () => {
         expect(res.body.data).toHaveProperty("user_id", 2);
     });
 
+    test("public profile route is available without authentication", async () => {
+        const res = await tester(app).get("/api/auth/users/2");
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveProperty("ok", true);
+        expect(res.body.data).toHaveProperty("user_id", 2);
+    });
+
     test("my profile route returns the authenticated user profile", async () => {
         const token = createAuthToken({ user_id: 4 });
 
